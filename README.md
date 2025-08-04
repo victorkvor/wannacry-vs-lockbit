@@ -54,7 +54,14 @@ The goal is to expose in-depth the mechanisms of evasion, persistence, obfuscati
         <li><a href="#installation">📥 Installation</a></li>
       </ul>
     </li>
-    <li><a href="#comparatives">⚖️ Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022)</a></li>
+    <li>
+      <a href="workflow-mitre">🧭 Sample Execution Workflow + MITRE ATT&CK Mapping</a>
+      <ul>
+        <li><a href="#wannacry">🦠 WannaCry</a></li>
+        <li><a href="#lockbit">🦠 LockBit 3.0</a></li>
+      </ul>
+    </li>
+    <li><a href="#comparative">⚖️ Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022)</a></li>
     <li><a href="#resources">📚 Resources</a></li>
     <li><a href="#contributing">🤝 Contributing</a></li>
     <li><a href="#license">©️ License</a></li>
@@ -174,9 +181,99 @@ To replicate the entire research under the same environment, follow the steps be
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## 🧭 Sample Execution Workflow + MITRE ATT&CK Mapping <a id="workflow-mitre"></a>
+
+### 🦠 WannaCry <a id="wannacry"></a>
+
+**Workflow:**
+
+<div align="center">
+    <a href="https://github.com/victorkvor/wannacry-vs-lockbit">
+      <img src="images/workflow_wannacry.png" alt="wannacry_wf" width="100%">
+    </a>
+</div>
+
+**MITRE ATT&CK Mapping:**
+
+| **Phase**                  | **Technique**                                                                                    | **ID**    | **Evidence**                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **1. Initial Access**      | *There are multiple ways to distribute the malware*                                              | —         | The malware copy was obtained manually from MalwareBazaar, so no initial access vector was observed in the sample.         |
+| **2. Execution**           | Command and Scripting Interpreter: Windows Command Shell                                         | T1059.003 | Uses cmd command at `create_tasksche_service()` to execute tasksche.exe                                                    |
+|                            | System Services: Service Execution                                                               | T1569.002 | Starts tasksche.service at `create_tasksche_service()`                                                                     |
+|                            | Windows Management Instrumentation                                                               | T1047     | Uses WMI at `UndefinedFunction_004064d0()` to delete shadow copies at `@WanaDecryptor@.exe`                                |
+| **3. Persistence**         | Boot or Logon Autostart Execution: Registry Run Keys                                             | T1547.001 | Sets persistence via the registry at `FUN_10004cd0()`.                                                                     |
+| **4. Defense Evasion**     | File and Directory Permissions Modification: Windows File and Directory Permissions Modification | T1222.001 | Uses `icacls . /grant Everyone:F /T /C /Q` to grant permissions to everyone at wWinMain in the main executable             |
+|                            | Hide Artifacts: Hidden Files and Directories                                                     | T1564.001 | Uses `attrib +h .` at wWinMain in the main executable                                                                      |
+| **6. Discovery**           | File and Directory Discovery                                                                     | T1083     | Searches user files for encryption based on specific file extension in mysterious_executable                               |
+|                            | Remote System Discovery                                                                          | T1018     | The main executable does the exploit EternalBlue and looks for active local IPs and public IPs `FUN_00407bd0()`            |
+|                            | System Network Configuration Discovery                                                           | T1016     | The main executable gets the subnet to iterate over the local IPs to perform the EternalBlue exploit at `FUN_00407bd0()`   |
+| **7. Lateral Movement**    | Exploitation of Remote Services                                                                  | T1021     | The main executable does the exploit EternalBlue and exploits other hosts through and SMBv1 vulnerability `FUN_00407bd0()` |
+| **8. Command and Control** | Proxy: Multi-hop Proxy                                                                           | T1090.003 | Uses TOR to communicate with the C&C server                                                                                |
+| **9. Impact**              | Data Destruction                                                                                 | T1485     | Deletes shadow copies at `UndefinedFunction_004064d0()` from `@WanaDecryptor@.exe`.                                        |
+|                            | Data Encrypted for Impact                                                                        | T1486     | WannaCry’s primary objective is to encrypt user files and demand ransom.                                                   |
+|                            | Defacement: Internal Defacement                                                                  | T1491.001 | Changes wallpaper on infected systems.                                                                                     |
+|                            | Inhibit System Recovery                                                                          | T1490     | Deletes VSS shadow copies at `UndefinedFunction_004064d0()` from `@WanaDecryptor@.exe`.                                    |
+|                            | Service Stop                                                                                     | T1489     | Stops services such as Microsoft Exchange and SQL at `FUN_100057c0()` in mysterious_executable.                            |
+
+---
+
+### 🦠 LockBit 3.0 <a id="lockbit"></a>
+
+**Workflow:**
+
+<div align="center">
+    <a href="https://github.com/victorkvor/wannacry-vs-lockbit">
+      <img src="images/workflow_lockbit.png" alt="lockbit_wf" width="100%">
+    </a>
+</div>
+
+**MITRE ATT&CK Mapping:**
+
+| **Phase**                   | **Technique**                                        | **ID**    | **Evidence**                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Initial Access**       | *There are multiple ways to distribute the malware*  | —         | The malware copy was obtained manually from MalwareBazaar, so no initial access vector was observed in the sample.                                |
+| **2. Execution**            | Command and Scripting Interpreter: PowerShell        | T1059.001 | Uses PowerShell commands at `FUN_004146a8()` to force `gpupdate` on network hosts.                                                                |
+|                             | Inter-Process Communication: Component Object Model  | T1559.001 | Uses COM objects like `ICMLuaUtil` to execute commands with elevated privileges in `bypass_uac_icmluautil_spoof_peb_and_relaunch()`.              |
+|                             | Native API                                           | T1106     | Indirect use of native API functions after dynamically loading them at `construct_api_addresses_antidbg()`.                                       |
+|                             | Scheduled Task/Job                                   | T1053.005 | Sets scheduled tasks to AD hosts at `FUN_004150e0()`.                                                                                             |
+|                             | Windows Management Instrumentation                   | T1047     | Uses WMI at `FUN_0040782a()` to delete shadow copies.                                                                                             |
+| **3. Persistence**          | Boot or Logon Autostart Execution: Registry Run Keys | T1547.001 | Sets persistence via the registry at `FUN_00411934()`.                                                                                            |
+|                             | Boot or Logon Autostart Execution: LSASS Driver      | T1547.008 | Injects a named pipe into `lsass.exe` at `inject_named_pipe_handle_lsass_or_explorer()`.                                                          |
+| **4. Privilege Escalation** | Abuse Elevation Control Mechanism: Bypass UAC        | T1548.002 | Uses `ICMLuaUtil` COM object to bypass UAC and relaunch LockBit with elevated privileges.                                                         |
+|                             | Access Token Manipulation: Token Impersonation/Theft | T1134.001 | Impersonates the token of `explorer.exe` at `get_explorer_securitydelegation_token()`.                                                            |
+|                             | Valid Accounts                                       | T1078     | Uses AD accounts from a credential list tested at `attempt_dclogon_and_get_token()`.                                                              |
+| **5. Defense Evasion**      | Debugger Evasion                                     | T1622     | Multiple anti-debugging techniques: `construct_api_addresses_antidbg()`, `hide_thread_from_dbg_func()`, `rtl_freeheap_antidbg_func()` and others. |
+|                             | Deobfuscate/Decode Files or Information              | T1140     | Deobfuscation via mask `0x10035fff`, Base64 decoding, and two-round XOR decryption in `decrypt_payload_xor_custom_func()`.                        |
+|                             | Group Policy Modification                            | T1484.001 | Disables Microsoft Defender via GPO at `FUN_004157b4()` and configures GPO to execute LockBit from SYSVOL at `FUN_004150e0()`.                    |
+|                             | Hide Artifacts: Process Argument Spoofing            | T1564.010 | Spoofs the command line in the PEB to make LockBit appear as `dllhost.exe` at `spoof_peb_imagepath_commandline_to_dllhost()`.                     |
+|                             | Impair Defenses: Disable or Modify Tools             | T1562.001 | Stops and deletes Windows Security Services at `FUN_00407ca4()` and security tools (e.g., Sophos) at `FUN_00414e50()`.                            |
+|                             | Impair Defenses: Disable or Modify System Firewall   | T1562.004 | Disables Windows Defender firewall policies on AD hosts at `FUN_004157b4()`.                                                                      |
+|                             | Indicator Removal: Clear Windows Event Logs          | T1070.001 | Deletes Windows event logs at `FUN_004091c8()`.                                                                                                   |
+|                             | Indirect Command Execution                           | T1202     | Dynamically resolves APIs and builds trampolines for execution at `load_apis_func()`.                                                             |
+|                             | Obfuscated Files or Information                      | T1027     | Obfuscated payload decoded via XOR and decompressed with aPLib-like algorithm at `some_aplib_decompressor_func()`.                                |
+|                             | Process Injection: Thread Execution Hijacking        | T1055.003 | Injects payload remotely to hijack execution at `inject_payload_and_wait_remote_thread()`.                                                        |
+|                             | Reflective Code Loading                              | T1620     | Reflectively loads code dynamically during execution at `decompress_obfuscated_code_func()`.                                                      |
+| **6. Credential Access**    | Brute Force: Password Spraying                       | T1110.003 | Tries a list of common credentials against the domain controller at `store_valid_dc_credential_from_list()`.                                      |
+| **7. Discovery**            | System Information Discovery                         | T1082     | Collects system info before exfiltration at `FUN_0040cd04()`.                                                                                     |
+|                             | System Language Discovery                            | T1614.001 | Retrieves user language to decide execution at `whitelist_language_func()`.                                                                       |
+| **8. Lateral Movement**     | Taint Shared Content                                 | T1080     | Drops a copy of LockBit into `SYSVOL` and uses GPOs to force execution on all domain hosts at `FUN_004150e0()`.                                   |
+| **9. Collection**           | Data from Local System                               | T1005     | Collects local system data for exfiltration at `FUN_0040cd04()`.                                                                                  |
+| **10. Exfiltration**        | Exfiltration Over Web Service                        | T1567     | Exfiltrates collected data via HTTP POST at `FUN_0040cfcc()`.                                                                                     |
+| **11. Impact**              | Data Destruction                                     | T1485     | Deletes shadow copies at `FUN_0040782a()`.                                                                                                        |
+|                             | Data Encrypted for Impact                            | T1486     | LockBit’s primary objective is to encrypt user files and demand ransom.                                                                           |
+|                             | Defacement: Internal Defacement                      | T1491.001 | Changes file icons and wallpaper on infected systems.                                                                                             |
+|                             | Inhibit System Recovery                              | T1490     | Deletes VSS shadow copies used for recovery at `FUN_0040782a()`.                                                                                  |
+|                             | Service Stop                                         | T1489     | Stops services such as SQL and backup tools like Veeam at `FUN_00414e50()`.                                                                       |
+
+---
+
+*MITRE ATT&CK® is a trademark of The MITRE Corporation. Techniques are referenced from the official [MITRE ATT&CK framework](https://attack.mitre.org/).*  
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## ⚖️ Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022) <a id="comparative"></a>
 
-| Aspect | **WannaCry (2017)** | **LockBit 3.0** |
+| Aspect | **WannaCry (2017)** | **LockBit 3.0 (2022)** |
 |--------|------------------|-------------|
 | **📅 Context of Appearance** | First major ransomware to exploit SMB vulnerabilities in Windows (EternalBlue). | Highly sophisticated and modular Ransomware-as-a-Service (RaaS), part of the professionalization of cybercrime. |
 | **💼 Business Model** | Massive, indiscriminate attack without victim targeting or customization. | RaaS model with affiliates. Targeted attacks against specific organizations with double extortion (encryption + data leak). |
