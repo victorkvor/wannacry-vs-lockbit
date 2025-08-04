@@ -769,27 +769,20 @@ This function calls another function in which, at first, there is nothing releva
 ![screenshot](images/wannacry_192.png)
 	- FUN_004074a4
 	If we enter the next function, `FUN_004074a4()` there are too many new functions without anything interesting at first sight, mainly because Ghidra seems to not decompile it correctly. Moreover, if you try to analyse each function, you will see more new functions to analyse, so after looking at the different functions, there is one that is quite interesting.
-	
 	![screenshot](images/wannacry_193.png)
 	The interesting function is the function `FUN_00406b8e()` which is receiving the function parameters, which are not correctly shown because of Ghidra, but if you look at assembly, you see it references the stack variables passed.
-	
 	![screenshot](images/wannacry_194.png)
-	
 	![screenshot](images/wannacry_195.png)
 		- FUN_00406b8e
 		We can see in the function that we call another interesting function with the same function parameters, the function `FUN_00405bae()`.
-		 
 		 ![screenshot](images/wannacry_196.png)
 			- FUN_00405bae
 			This function creates a file with [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea) and sets the pointer in the file with [`SetFilePointer`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointer). So it's apparently creating a file with the embedded resource and returning the pointer of the file.
-			
 			![screenshot](images/wannacry_197.png)
 			So after creating the file, the next and more important function is `FUN_00405fe2()`.
-			
 			![screenshot](images/wannacry_198.png)
 			- FUN_00405fe2
 			If we look at the assembly code, we can clearly see a string that has the signature `unzip` on it, so it seems the entire function with the other things is just extracting the resource, which seems to be zipped, and probably the passed string parameter was the decryption key.
-			
 			![screenshot](images/wannacry_199.png)
 
 So after this analysis, we will name the function `extract_encrypted_resource`:
@@ -939,10 +932,8 @@ This function at first sight loads a variety of `kernel32.dll` function pointers
 | `cryptEncrypt`         | `CryptEncrypt`         | Encrypts data using a specified key                                      |
 | `cryptDecrypt`         | `cryptDecrypt`         | Decrypts data                                                            |
 | `_cryptGenKey`         | `CryptGenKey`          | Generates a cryptographic key (symmetric/asymmetric, depending on flags) |
-	
 	![screenshot](images/wannacry_232.png)The malware is probably being prepared to start encrypting and decrypting, based on the function pointers that it's retrieving. If the `cryptAcquireContexA` is already loaded, then it will return a `1`, and if it's not loaded, it will try to load all the function pointers, and if it succeeds, it will return a `1` also, but if it fails, it will return a `0`. 
 	Based on this, we will rename the function to `init_crypto_function_ptr`:
-	
 	![screenshot](images/wannacry_233.png)
 
 So after clearing up what the function does, if the `init_crypto_function_ptr` is successful, then it will enter the first `if` which, which checks with another `if`, if `createFileW` is actually initialised, and if it is, then it returns a `1`. If not, then it will attempt to load the next functions, that if they're all correctly loaded then it will return a `1` and if any of the function fails it will return a `0`.
@@ -985,23 +976,18 @@ Then we will analyse the function `FUN_00401437()`.
 	First we have to check the function `FUN_00401861()`.
 		- import_key (FUN_00401861)
 		We also have to check the first function `FUN_00420182c()`.
-		
 		![screenshot](images/wannacry_240.png)
 			- acquire_cryptocontext (FUN_00420182c)
 			Here we acquire the crypto context, which will make us able to make cryptographic operations.
-			
 			![screenshot](images/wannacry_241.png)
 		If we successfully retrieve the crypto context, we import the RSA2 key and if it's done correctly, then the function returns `1`.
-		
 		![screenshot](images/wannacry_242.png)
 		If the import failed, then it tries with the function `FUN_004018f9()`.
 			- import_key_file (FUN_004018f9)
 			This function attempts to create a file with the contents of `param_3` and later imports the key into `param_1` from `param_2`.
-			
 			![screenshot](images/wannacry_243.png)
 		So if the import from the memory fails, it tries it from a file. And the last function `FUN_004018b9()` releases the resources.
 		Based on the inner functions, the function will be renamed to `import_key`:
-		
 		![screenshot](images/wannacry_244.png)
 	Based on the functions, it will be renamed to `import_rsa_key`:
 	
@@ -1090,7 +1076,6 @@ So if the `import_rsa_key()` function is done correctly, then it enters the `if`
 | **Encrypted payload** | `0x0118`           | `0x10117`        | 65,536       | Encrypted data to be decrypted using the AES key                          |
 	And the function returns the decrypted payload.
 	Based on the functionality, we will rename the function to `decrypt_twnry`:
-	
 	![screenshot](images/wannacry_267.png)
 
 
@@ -1396,7 +1381,6 @@ void FUN_10004cd0(void)
 cmd.exe /c reg add HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v "oqywognupbonhr845" /t REG_SZ /d "\"\"" /f Users\ANON\Desktop\Malware Samples\WannaCry Bueno\python_script\tasksche.exe\"" /f
 ```
 .
-	
 	![screenshot](images/wannacry_300.png)
 ```c
 void __cdecl FUN_100047f0(undefined4 param_1)
@@ -1841,53 +1825,35 @@ At the bottom there are two other options:
 
 #### Process and Service Analysis
 Using Process Hacker, multiple suspicious services and processes are identified as being spawned by the malware:
-	
 	![screenshot](images/wannacry_313.png)
-	
 	![screenshot](images/wannacry_314.png)
-	
 	![screenshot](images/wannacry_315.png)
-	
 	![screenshot](images/wannacry_316.png)
-	
 	![screenshot](images/wannacry_317.png)
-	
 	![screenshot](images/wannacry_318.png)
 
 One particularly interesting process is `taksche.exe`, registered as a service with a randomly generated name `oqywognupbonhr845`. This file is located at `C:/ProgramData/oqywognupbonhr845`:
-	
 	![screenshot](images/wannacry_319.png)
-	
 	![screenshot](images/wannacry_320.png)
 This folder is hidden by default; visibility was enabled by configuring Windows Explorer to show hidden items, indicated by the translucent folder icon.
-	
 	![screenshot](images/wannacry_321.png)
 Inside this folder are all components previously recovered through static analysis, except for `@WanaDecryptor@.exe`, which is essentially a renamed copy of `u.wnry` with a custom icon.
-	
 	![screenshot](images/wannacry_322.png)
-	
 	![screenshot](images/wannacry_323.png)
-	
 	![screenshot](images/wannacry_324.png)
 The `mssecsvc2.0` process attempts to disguise itself as a legitimate Microsoft Defender service.
-	
 	![screenshot](images/wannacry_325.png)
 Two key processes, `taksche.exe` (described as "DiskPart") and `taskhsvc.exe`, are also associated with the ransomware's operation.
-	
 	![screenshot](images/wannacry_326.png)
 The main process masquerades as a legitimate service under the name **Microsoft Disk Defragmenter**, with Microsoft Corporation listed as the publisher.
-	
 	![screenshot](images/wannacry_327.png)
 
 #### EternalBlue lateral movement
 Network activity reveals that the main executable attempts to establish connections to random IP addresses over **port 445 (SMB)**. This is a preparatory step for launching the **EternalBlue exploit**, used for lateral movement.
-	
 	![screenshot](images/wannacry_328.png)
-	
 	![screenshot](images/wannacry_329.png)
 #### Persistence Mechanism
 A registry entry is created under "`HKEY_CURRENT_USER/SOFTWARE/Microsoft/Windows/CurrentVersion/Run`". This entry has the name `oqywognupbonhr845` and points to the path of the malware executable, ensuring that the ransomware runs on every system startup.
-	
 	![screenshot](images/wannacry_330.png)
 ### Execution workflow
 So the workflow of the program is the following:
@@ -1959,22 +1925,17 @@ rule Wannacry_victorK
 	To check the YARA rules, we will use [`YARA Playground`](https://www.yaraplayground.com/), which is a web-based Yara debugger, to test YARA rules without requiring you to install anything.
 		- 24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe:
 			We can see that with the copy we analysed, obviously all the rules match, some of them multiple times, at the bottom.
-			
 			![screenshot](images/wannacry_331.png)
 		 - Other variants:
 			- 588cc3d662585f277904ee6afb5aa73143119ac663531ea4b6301eaccd9e4117.exe:
 				At this variant matches multiple resource_1831 strings, detecting it correctly.
-				
 				![screenshot](images/wannacry_332.png)
 			- dd9e91e348f5b6df686649d36863922e50208e2e6a2c8dde5fead47ac1778602.exe:
 				At this variant matches multiple eternal blue strings and the payload, the core strings, and the resource_1831 strings, detecting it correctly.
-				
 				![screenshot](images/wannacry_335.png)
-				
 				![screenshot](images/wannacry_333.png)
 			-e64a182607d00395ebd9658681b3bb8f8d5a3436587a2bb5f50355b65a647bd8.exe:
 				At this variant matches multiple resource_1831 strings, detecting it correctly.
-				
 				![screenshot](images/wannacry_334.png)
 
 ### MITRE ATT&CK Framework
