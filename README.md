@@ -258,7 +258,7 @@ Project Link: [https://github.com/victorkvor/wannacry-vs-lockbit](https://github
 [issues-shield]: https://img.shields.io/github/issues/victorkvor/wannacry-vs-lockbit.svg?style=for-the-badge
 [issues-url]: https://github.com/victorkvor/wannacry-vs-lockbit/issues
 [cc-by]: http://creativecommons.org/licenses/by/4.0/
-[cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg
+[cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg?style=for-the-badge
 [license-shield]: https://img.shields.io/github/license/victorkvor/wannacry-vs-lockbit.svg?style=for-the-badge
 [license-url]: https://github.com/victorkvor/wannacry-vs-lockbit/blob/master/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
