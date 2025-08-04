@@ -5,7 +5,7 @@
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+[![CC BY 4.0][cc-by-shield]][cc-by]
 [![LinkedIn][linkedin-shield]][linkedin-url]
 
 <!-- PROJECT LOGO -->
@@ -257,6 +257,8 @@ Project Link: [https://github.com/victorkvor/wannacry-vs-lockbit](https://github
 [stars-url]: https://github.com/victorkvor/wannacry-vs-lockbit/stargazers
 [issues-shield]: https://img.shields.io/github/issues/victorkvor/wannacry-vs-lockbit.svg?style=for-the-badge
 [issues-url]: https://github.com/victorkvor/wannacry-vs-lockbit/issues
+[cc-by]: http://creativecommons.org/licenses/by/4.0/
+[cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg
 [license-shield]: https://img.shields.io/github/license/victorkvor/wannacry-vs-lockbit.svg?style=for-the-badge
 [license-url]: https://github.com/victorkvor/wannacry-vs-lockbit/blob/master/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
