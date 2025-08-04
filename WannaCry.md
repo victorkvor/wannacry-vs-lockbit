@@ -1,56 +1,71 @@
 # Preparing the malware
 ---
 First, we need a sample of WannaCry, which can be obtained from MalwareBazaar. The one that I will be reverse engineering has the hash `md5:db349b97c37d22f5ea1d1841e3c89eb4` .
+
 ![screenshot](images/wannacry_1.png)
 The malware will be compressed with a password as an additional security measure. The password is in the same MalwareBazaar link from where we retrieved this sample; the password is "*infected*".
 # Ghidra
 ## Creating our WannaCry Project in Ghidra
 ---
 In `File > New Project...` or `CTRL+N`.
+
 ![screenshot](images/wannacry_2.png)
 
 Now we will need to choose between `Non-Shared Project` or `Shared Project`; in our case we will be working on this project alone, so we will choose the `Non-Shared Project` and hit `Next >>`
+
 ![screenshot](images/wannacry_3.png)
 
 Then we will assign a name to the project and click `Finish`.
+
 ![screenshot](images/wannacry_4.png)
 
 Now, we can drag the malware directly to the project *Wannacry-Ghidra*.
+
 ![screenshot](images/wannacry_5.png)
 
 For the Import setting we will leave them at default and we will click `OK`.
+
 ![screenshot](images/wannacry_6.png)
 
 After the import, it will generate the results, informing that the exports were successful.
+
 ![screenshot](images/wannacry_7.png)
 ## Functions and Control Flow
 ---
 ### Setting-up Analysis
 --- 
 Now to start with the Statical Analysis we just need to click on the imported WannaCry sample at Ghidra.
+
 ![screenshot](images/wannacry_8.png)
 The first time, it will say that the executable has not been analysed, so we will start the analysis by clicking `Yes.`
 
 Now, for the analysis options, we need to additionally enable the `Decompiler Parameter ID` to make the code more readable and accurate by making Ghidra attempt to identify function parameters and their types during the decompilation phase of the binary code.
+
 ![screenshot](images/wannacry_9.png)
 
 Also, it will be important to enable the `WindowsPE x86 Propagate External Parameters` option to recognize external library function calls on the Windows platform, such as the Windows API functions that will be very important throughout the entire analysis.
+
 ![screenshot](images/wannacry_10.png)
 Now we will just click the `Analyze` button and start the decompilation to begin statically analysing the ransomware.
 ### Statical Analysis
 --- 
 #### General File Information
 To check general information about the file, we will use the program [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
+
 ![screenshot](images/wannacry_11.png)
 We will open the sample from the folder button.
+
 ![screenshot](images/wannacry_12.png)
 At the bottom we can see in the scan section that it's a PE file for 32 bits, the packer is Microsoft Visual C++, and it indicates that the file has high entropy.
+
 ![screenshot](images/wannacry_13.png)
 
 If we go to the entropy section, we will see that the entropy is high, and most of the executable is packed; 99% of the content is packed and has an entropy of `7.96426`.
+
 ![screenshot](images/wannacry_14.png)
 
 Besides that, we can see in the file properties its size:
+
 ![screenshot](images/wannacry_15.png)
 
 To get the file hashes, we can use the following commands from PowerShell:
@@ -58,6 +73,7 @@ To get the file hashes, we can use the following commands from PowerShell:
 > Get-FileHash -Path ".\24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe" -Algorithm SHA1
 > Get-FileHash -Path ".\24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe" -Algorithm SHA256
 > Get-FileHash -Path ".\24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe" -Algorithm SHA512
+
 ![screenshot](images/wannacry_16.png)
 
 | Campo            | Valor                                                                                                                                                                                                                                                                                                                         |
@@ -74,259 +90,355 @@ To get the file hashes, we can use the following commands from PowerShell:
 
 #### Introduction
 Now, if we open the functions, we will see all functions found in the decompilation for a total of 135.
+
 ![screenshot](images/wannacry_17.png)
 
 #### Function entry
 First, we have to start with the function [`entry`](https://learn.microsoft.com/en-us/cpp/build/reference/entry-entry-point-symbol?view=msvc-170), which is the first function called when the program is executed, which is the default entry code generated for Windows executables.
 
 In the next image we can see, at the left side, the assembly code and, at the right, the decompiled code of the function `entry()`.
+
 ![screenshot](images/wannacry_18.png)
 
 Where, at the end of the entry function, appears the call to the main function of the application, `wWinMain`, which is common for all Windows applications. Which we will rename to make the code more readable and as similar to the original source code as possible.
+
 ![screenshot](images/wannacry_19.png)
 
 To edit this function, and the upcoming ones, we need right-click and choose the `Edit Function Signature` option.
+
 ![screenshot](images/wannacry_20.png)
 
 Then we will substitute the Ghidra attempt to represent the original function with the `wWinMain` function we can find in the [`Microsoft Documentation`](https://learn.microsoft.com/en-gb/windows/win32/learnwin32/winmain--the-application-entry-point):
+
 ![screenshot](images/wannacry_21.png)
 
 To apply the changes, press `TAB` or `RETURN` to commit the changes and click `OK` when you finish, after accepting the datatypes:
+
 ![screenshot](images/wannacry_22.png)
 Now you will see the changes reflected:
+
 ![screenshot](images/wannacry_23.png)
 #### Function wWinMain
 We can see from `Window > Function Call Graph`, when selecting the entry function, all the calls done by this function, which illustrates why it's the first executed function, `entry()`.
+
 ![screenshot](images/wannacry_24.png)
 
 The result of the graph is the function `entry()` calling thirteen other functions:
+
 ![screenshot](images/wannacry_25.png)
 
 Now if you open `wWinMain()` by double-clicking, you will see that the rest of the functions are called from there, and we can continue to expand each function we see there. 
+
 ![screenshot](images/wannacry_26.png)
 
 After expanding `wWinMain()` you can appreciate that there appears some interesting functions, like `InternetOpenA`, `InternetOpenUrlA`, and `InternetCloseHandle`, which, by the names, we can deduce are trying to get access to a website.
+
 ![screenshot](images/wannacry_27.png)
 
 If we inspect closer, we can see directly in the decompiled code by Ghidra a suspicious URL, and it is trying to open it.
+
 ![screenshot](images/wannacry_28.png)
 
  About the two variables, one with a suspicious URL and another variable reserving a buffer size of 57 bytes, in the loop you can see that `14*4` bytes are being copied from the suspicious URL (`suspicious_url`), which means it is creating an exact copy, and a last byte copy `MOVSB` for the null terminator `\0`, which can be seen when selecting `*suspicious_url_copy = *suspicious_url`; it's decompilated from `MOVSB ES:suspicious_url_copy,suspicious_url`
+
 ![screenshot](images/wannacry_29.png)
 
 After fixing up the decompiled code, renaming variables, and setting up the correct function, we will need to edit the function signature for [`InternetOpenA`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetopena), [`InternetOpenUrlA`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetopenurla), [`InternetCloseHandle`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetclosehandle), which can be found in [`Microsoft Wininet.h functions`](https://learn.microsoft.com/en-us/windows/win32/api/_wininet/).
 
 Take into consideration that sometimes you will need to create datatypes, as Ghidra doesn't recognise them by default, like `HINTERNET`, so you will need to create one type for HINTERNET in the malware datatypes, `(malware).exe` > `New` > `Typedef`. There we will define `HINTERNET` as a void pointer, because it's a handle that the API does not expose its structure to making the correct choice to be a void pointer.
+
 ![screenshot](images/wannacry_30.png)
 
 Now, we will edit the function signature for each of the `Wininet.h` functions.
+
 ![screenshot](images/wannacry_31.png)
 
+
 ![screenshot](images/wannacry_32.png)
+
 
 ![screenshot](images/wannacry_33.png)
 
 After tidying up the code, we can now start trying to understand the decompiled code. If we look at the if, we can see that we are comparing if the value returned by `InternetOpenUrlA` is null (zero); if it is, it couldn't connect with the URL. What it does mean is that if the weird URL is not found, a function is called, which will be the real entry function, because if the program establishes a connection with the suspicious URL, it will close the connection and the handle and instantly end the program. That's because it is using a killswitch mechanism, because the program is trying to evade any kind of sandbox that simulates whichever connection the WannaCry virus is trying to access, and if it actually gets a connection to a random URL, it will not continue its execution and end abruptly.
+
 ![screenshot](images/wannacry_34.png)
 The workflow of the program until now looks like this:
+
 ![screenshot](images/wannacry_35.png)
 #### Function real_entry
 Now we will check the `real_entry` function, where at first sight we see some stack variables and a few Windows functions.
+
 ![screenshot](images/wannacry_36.png)
 
 The Windows functions have the correct structure, as Ghidra structured them correctly: [`GetModuleFileNameA`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea), [`OpenSCManagerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagera), [`OpenServiceA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicea), and [`CloseServiceHandle`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-closeservicehandle). But, we will rename some variables to make the code more readable.
 
 The first Windows function, [`GetModuleFileNameA`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea), the documentation hints that it retrieves the executable file path, so the variable `lpFilename_0070f760` will be the variable where the path will be stored. Rename it to a clearer variable.
+
 ![screenshot](images/wannacry_37.png)
+
 ![screenshot](images/wannacry_38.png)
 
 In the first if, it's checking if we retrieved one or fewer arguments in `argc`, where the first argument is for the program, so it will be true when you don't have arguments in `argc`. If it's true, it will call a function, which we can rename to `func_noargs`.
+
 ![screenshot](images/wannacry_39.png)
 
 ##### Function func_noargs
 In `func_noargs()` there are two functions that are called, and after that it will return. We will enter the first function `FUN_00407c40()` to see what it does. Later we will check `FUN_00407ce0()`.
+
 ![screenshot](images/wannacry_40.png)
 - Function create_service_executable (FUN_00407c40)
 	In this function we can see four Windows functions that are in the correct format, automatically formatted by Ghidra, when checking up the function signature. The functions can be verified in the Microsoft Documentation.
+	
 	![screenshot](images/wannacry_41.png)
 	
 	If you check the first `sprintf`, we can see that we are using the executable_path variable we renamed before and storing it with additional parameters `-m security` (I will get something similar to `c:\Users\ANON\Desktop\Malware Samples\WannaCry Bueno\24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe -m security`). We will rename the variable where it's being stored, `local_104`, to `executable_path_with_args` to have it identified.
+	
 	![screenshot](images/wannacry_42.png)
 	
 	In the rest of the function, we first establish a connection to the Service Control Manager (SCM), and if it's opened correctly (the handle is not zero), then we create a service with the `lpServiceName` of `mssesvc_2.0`, which is the real service name, and the `lpDisplayName` of `Microsoft Security Center (2.0)`, which will be the name that will be displayed in the user graphical interface.
+	
 	![screenshot](images/wannacry_43.png)
 	
 	After that, it checks if the service is successfully created, and if it was successful, it starts the service.
+	
 	![screenshot](images/wannacry_44.png)
 	
 	Then we will come back to the previous function `func_noargs()`, after renaming this function to `create_service_executable`. And go the next function `FUN_00407ce0()`.
+	
 	![screenshot](images/wannacry_45.png)
 	
 	- Function write_resource1831_tasksche (FUN_00407ce0)
 	After getting a first inspection, the function is quite huge with many process address retrievals, variable declarations, and many predefined functions, which are actually well formatted thanks to Ghidra.
+	
 	![screenshot](images/wannacry_46.png)
 	
 	First we try to get a handle to [`kernel32.dll`](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-entry-point-function), which is a Dynamic Link Library in Windows Operating Systems that provides essential functionalities to interact with the operating system. If it succeeds, not equal to zero, it tries to load the process address of four functions. [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa) to create a process, [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea) to create a file, [`WriteFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile) to write in the file it will create, and [`CloseHandle`](https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle) to close the `kernel32.dll` handle. I will rename the variables to make it more clear.
+	
 	![screenshot](images/wannacry_47.png)
 	
 	Later we can see that after a successful load of the four functions, it tries to find a resource with the function [`FindResourceA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-findresourcea), which, if we look at the parameters, the second one, `lpName`, which in reality is `MAKEINTRESOURCE`, looks for an ID, which, if we convert it to decimal we can see that it's trying to find the resource with the ID `1831`. 
+	
 	![screenshot](images/wannacry_48.png)
-	Also, the `DAT_0043137c` indicates the resource is of type `R`. ![screenshot](images/wannacry_49.png)
+	Also, the `DAT_0043137c` indicates the resource is of type `R`. 
+	![screenshot](images/wannacry_49.png)
 	
 	If the resource is found, we get the handle of the resource with [`LoadResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadresource), lock it with [`LockResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-lockresource) (which actually just gets the pointer to the memory containing the resource), and get the size in bytes of the resource with [`SizeofResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-sizeofresource).
+	
 	![screenshot](images/wannacry_50.png)
 	
 	The following decompiled code seems to not be decompiled correctly by Ghidra, probably because its heuristic doesn't do well in this case. We can use great resources like [DogBolt](https://dogbolt.org) to decompile, which is a compilation of multiple open-source decompilers. But, if we compare the code with assembly, we can see that it's trying to set to zero a range of bits, of which `0x40` (64) is the amount of bytes that will be zeroed. The behaviour is similar to `memset(puVar6, 0, 0x40)`.
+	
 	![screenshot](images/wannacry_51.png)
 	
 	Now if we continue reading the code, we see two `sprintf` that are attempting to store a string with multiple parameters, for which at first glance we see only one parameter (besides the variable to store the string). The first `sprintf` should have two additional parameters, taskche.exe and the Windows strings. The second `sprintf` is missing an additional parameter, which is the string Windows (`%s` is a placeholder to be replaced by the rest of the parameters).
+	
 	![screenshot](images/wannacry_52.png)
 	
 	For the first `sprintf`, we will override the `signature`, adding two more parameters to make Ghidra automatically recognise the missing parameters.
+	
 	![screenshot](images/wannacry_53.png)
+	
 	![screenshot](images/wannacry_54.png)
 	
 	After changing it, we will see the changes reflected. The path saved will be `C:\WINDOWS\tasksche.exe`, so we will rename the variable to keep it identified. 
+	
 	![screenshot](images/wannacry_55.png)
 	
 	For the next `sprintf`, we will do the same, but now we just need to add one param. The path saved will be `C:\WINDOWS\qeriuwjhrf`.
+	
 	![screenshot](images/wannacry_56.png)
 	
 	And just in the next line we can see the function loaded from `kernel32.dll`, [`MoveFileExA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexa), which has two parameters, which, based on the flag, `MOVEFILE_REPLACE_EXISTING`, will be renamed to `qeriuwjhrf` if `tasksche.exe` already exists.
+	
 	![screenshot](images/wannacry_57.png)
 	
 	A few lines down, we can see the previously loaded address of the function, `createFileA`, to be called as a function.
+	
 	![screenshot](images/wannacry_58.png)
 	
 	The problem is that it seems it is not taking the variable correctly, so you will need to select the data type manually to make it be recognised by Ghidra. So you will need to retype globally the data type to `createFileA` as a pointer to call the function properly.
+	
 	![screenshot](images/wannacry_59.png)
+	
 	![screenshot](images/wannacry_60.png)
 	
 	The result will be that we will be creating a file with `createFileA`, retrieving its handle.
+	
 	![screenshot](images/wannacry_61.png)
 	
 	If the creation of the handle is successful, the `writeFile` function will be called, which will save the content of the resource `1831` into `tasksche.exe` (specified in the opened handle), and later the function `closeHandle` will close the opened handle, for which we will need to repeat the procedure of retype global (`resource_1831_locks` has another name because it's bugged and says that `resource_1831_lock` exists, when it doesn't exist after accidentally reverting changes).
+	
 	![screenshot](images/wannacry_62.png)
 	
 	Now, there is a huge amount of code that is not easy to read.
 	
 	First we have a loop that is setting to zero 16 bytes (`0x10`) of `puVar6`.
+	
 	![screenshot](images/wannacry_63.png)
 	
 	Secondly, we have a variable with a big value, and also we load a pointer with data that if we clear the code bytes and make it a `TerminatedCString`, we see an interesting parameter, which is "` /i` ", that will be a parameter that makes a program silent. In the loop we go character by character, advancing the `mysterious_String` pointer one by one while getting each character, subtracting one from `mysterious_String_size` with each, until the null terminator appears, and later does a `NOT` operation with the big value, and after inverting the bits, we get the total size of the string.
+	
 	![screenshot](images/wannacry_64.png)
+	
 	![screenshot](images/wannacry_65.png)
+	
 	![screenshot](images/wannacry_66.png)
+	
 	![screenshot](images/wannacry_67.png)
+	
 	![screenshot](images/wannacry_68.png)
 	
 	For the next step, which is harder to see, now we go through the entire `tasksche` path string until reaching the null terminator, staying at this pointer. Next we replace `tasksche_paths_string` by the mysterious string (`aux_mysterious_String - mysterious_String_size` returns to the start of the mysterious string). Now it subtracts one in the pointer of `aux_tasksche_path_string` to substitute the null terminator. In the first loop for, the mysterious string that is now copied to `tasksche_path_string` is appended in a block of 4 bytes to the end of `aux_tasksche_path_string` (the actual `tasksche` path). And the second loop (`for`) is for the remaining bytes (3, 2 or 1 byte remaining), which copies byte by byte.
+	
 	![screenshot](images/wannacry_69.png)
 	
 	Now after appending the pointer data to the end of the `tasksche` path, the process is created with the added parameter "` \i`" that will execute the process silently with the [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa) function, and it is especially interesting that one of the parameters that corresponds to `dwCreationFlags` also has the value `0x8000000` ([`CREATE_NO_WINDOW`](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)) that makes it run silently, without displaying any console. If the process is created successfully, then we close open handles.
+	
 	![screenshot](images/wannacry_70.png)
 
 #### Function real_entry
 Otherwise, if we had arguments, it will not enter the if to enter the `func_noargs()` and return; instead, it will try to open the Service Control Manager of Windows with [`OpenSCManagerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagera) and will try to open the service `mssecsvc2.0`, and if if it succeeds, it will enter a function.
+
 ![screenshot](images/wannacry_71.png)
 - function configure_service_failure (FUN_00407fa0)
 	In this function we see a bunch of strange data, but if we check the [`ChangeserviceConfig2A Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfig2a), the second parameter `dwInfoLevel` is `2`, which is `SERVICE_CONFIG_FAILURE_ACTIONS`, meaning the third parameter has to be of type `SERVICE_FAILURE_ACTIONS`. Changing the type of the variable will fix the function completely. Also, the second parameter of the whole function refers to seconds, because the variable `scact` is used for the delay multiplied by a thousand to get milliseconds, the required format.
+	
 	![screenshot](images/wannacry_72.png)
 	Because the function configures the service `mssecsvc2.0` to restart automatically on failure after `seconds`, if `seconds != -1` to make the malware service more persistent, we will rename the function `configure_service_failure`.
+	
 	![screenshot](images/wannacry_73.png)
 
 So after configuring the service, if a failure occurs, then it creates a `SERVICE_TABLE_ENRYA` with the service name `mssecsvc2.0` and pointer to the service's main function.
+
 ![screenshot](images/wannacry_74.png)
 - LAB_00408000
 	It points to an undefined function that registers and launches the malware as a Windows service named `mssecsvc2.0` with [`RegisterServiceCtrlHandlerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-registerservicectrlhandlera).
+	
 	![screenshot](images/wannacry_75.png)
 	If we enter `FUN_00407bd0()`, we can see more, and there is also a sleep that lasts 24 hours to keep it alive.
 	- function FUN_00407bd0
 		This function executes if the function `FUN_00407b90()` doesn't return zero, which does some operations based on the filename to see if the conditions are doable. If it's different from zero, then it seeks concurrency by creating one thread for a specific routine `_StartAddress_00407720` and another 128 threads for another specific routine `_StartAddress_00407840` based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/beginthread-beginthreadex?view=msvc-170).
+		
 		![screenshot](images/wannacry_76.png)
 		- Routine \_StartAddress_00407720 (1 thread)
 			The upcoming function features too much code and is not correctly decompiled, but we will be looking at `FUN_00409160()` and the thread that is created for each parameter that we retrieve from the function, which is the logical approach.
+			
 			![screenshot](images/wannacry_77.png)
 			- function FUN_00409160
 				This function, first, retrieves the adapter's information of the computer.
+				
 				![screenshot](images/wannacry_78.png)
 				Then it retrieves, based on the operations, the IP address and the subnet mask, and then if they are valid, it retrieves the broadcast address and the network address.
+				
 				![screenshot](images/wannacry_79.png)
 			- Routine StartAddress_004076b0
 				We can see that it first checks with the result of the function `FUN_00407480()` if it satisfies a condition, entering another thread `_StartAddress_00407540`, and if fails, does nothing and ends that thread.
+				
 				![screenshot](images/wannacry_80.png)
 				- function FUN_00407480
 					Simple function that checks if it can establish a connection with a given IP. Based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket), it creates a `sock_addr` with a `param_1` as the destination IP, with the port 445 (`SMB`) and with the socket function being the first parameter 2 (`IPv4`), the second parameter 1 (`SOCK_STREAM`) for bidirectional conversation, and as the third parameter 6 (`TCP`) that if it doesn't succeeds returns zero, and if it succeeds, a distinct number.
+					
 					![screenshot](images/wannacry_81.png)
 				- Routine \_StartAddress_00407540
 					If the IP was valid, it first copies the IP in ASCII and then calls a function with that IP and a second parameter, 455 (`SMB`).
+					
 					![screenshot](images/wannacry_82.png)
 					- function FUN_00401980
 						The function attempts to connect to `SMB` with `IPv4` with the given IP and the port 455.
+						
 						![screenshot](images/wannacry_83.png)
 						Then it probes with different `SMB` payloads based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/32b5d4b7-d90b-483f-ad6a-003fd110f0ec).
+						
 						![screenshot](images/wannacry_84.png)
 						First tries with a normal `SMB` probe, because of what we can see at the buffer; also, the `0x72` value is the [`SMB_COM_NEGOTIATE`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/96ccc2bd-67ba-463a-bb73-fd6a9265199e) that will start establishing the SMB connection.
+						
 						![screenshot](images/wannacry_85.png)
 						Later it probes again with the `0x73` value, which, is the [`SMB_COM_SESSION_SETUP_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/d902407c-e73b-46f5-8f9e-a2de2b6085a2) that establishes the `SMB` connection.
+						
 						![screenshot](images/wannacry_86.png)
 						After that it probes again with the `0x75` value that is the [`SMB_COM_TREE_CONNECT_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/a105173a-d854-4950-be28-3d3240529ec3) and also has a placeholder that is substituting in order to do the Eternal Blue exploit. That is done by the `FUN_004017b0()`, which substitutes the buffer placeholder, making the probe attempt to access the [`IPC$`](https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/inter-process-communication-share-null-session) hidden shared resource in Windows.
+						
 						![screenshot](images/wannacry_87.png)
+						
 						![screenshot](images/wannacry_88.png)
+						
 						![screenshot](images/wannacry_89.png)
 						- function FUN_004017b0
 							The function changes the `USERID_PLACEHOLDER` and `TREEPATH_REPLACE` as it does multiple operations.
+							
 							![screenshot](images/wannacry_90.png)
+							
 							![screenshot](images/wannacry_91.png)
 						The next probe directly confirms the exploit by using the value `0x25`, which is the [`SMB_COM_TRANSACTION`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/0ed1ad9f-ab96-4a7a-b94a-0915f3796781) that contains the `PeekNamedPipe` subcommand set to zero.
+						
 						![screenshot](images/wannacry_92.png)
 						Then it checks if the `SMB` probe returns [`STATUS_INSUFF_SERVER_RESOURCES (0xC0000205)`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/2c9b7ac3-3dc8-4624-9ce4-80306c8c6d3a); that confirms that the machine is vulnerable to the EternalBlue exploit and returns `1`. If not or any of the previous steps fail, it will return `0`, not vulnerable.
+						
 						![screenshot](images/wannacry_93.png)
 					Then if it's vulnerable, it executes the `FUN_00401b70()`, which also has the port 445.
+					
 					![screenshot](images/wannacry_94.png)
 					- function FUN_00401b70:
+						
 						![screenshot](images/wannacry_95.png)
 						It first establishes a connection through SMB protocol (port 445), where the first two buffers establish the connection with [`SMB_COM_NEGOTIATE`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/96ccc2bd-67ba-463a-bb73-fd6a9265199e) and [`SMB_COM_SESSION_SETUP_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/d902407c-e73b-46f5-8f9e-a2de2b6085a2).
 						The third buffer sent does [`SMB_COM_TREE_CONNECT_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/a105173a-d854-4950-be28-3d3240529ec3), connecting to the `IPC$` shared resource. 
+						
 						![screenshot](images/wannacry_96.png)
 						Then in the fourth buffer sent, it probes with the `0x32` value, that is [`SMB_COM_TRANSACTION2`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/3d9d8f3e-dc70-410d-a3fc-6f4a881e8cab), that will check if the machine is infected with the Double Pulsar backdoor, which was allegedly employed by the U.S. National Security Agency and released by the group of hackers ShadowBrokers, based on the info provided by [`Qualys`](https://threatprotect.qualys.com/2017/04/26/doublepulsar-backdoor-spreading-rapidly-in-the-wild/). The gimmick is that if the returned value of the Multiplex ID field is `0x41` for machines not infected with the Double Pulsar and `0x51` for the infected ones, which is the check we can see, then if everything went alright, it will make a final send of an executable through the buffer overflow done.
+						
 						![screenshot](images/wannacry_97.png)
 						If we check the buffer, we will see that it has a huge amount of data with the signature `MZ`, which pertains to an executable, meaning it will infect the machine through the Double Pulsar backdoor.
+						
 						![screenshot](images/wannacry_98.png)
 					So if it was successful, then it stops, but if not, then it continues to the next function, `FUN_00401370()`, with a bunch of unclear values.
+					
 					![screenshot](images/wannacry_99.png)
 					- function FUN_00401370
 						At this function we have an interesting function `FUN_00401d80()`,  which seems to load a massive amount of data, near to 4700 lines of code, into the variables to load a payload. First we see it's loading some `SMB` payloads to establish a connection.
+						
 						![screenshot](images/wannacry_100.png)
 						Where the most interesting one seems to be the `SMB` payload with the `0x33` value that is [`SMB_COM_TRANSACTION2_SECONDARY`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/80207e03-6cd6-4bbe-863f-db52f4d2cb1a), to do the exploit if the Double Pulsar backdoor was not present.
+						
 						![screenshot](images/wannacry_101.png)
 						Then we see at the global variable `DAT_0041bbb0` that it's a huge payload, doing some sort of operation (there are more suspicious Base64 payloads).
+						
 						![screenshot](images/wannacry_102.png)
 						If we copy this payload and save it to a binary, we can analyse it further.
 						
 						Also, we will delete the empty data.
+						
 						![screenshot](images/wannacry_103.png)
 						Then with that we will copy the text, which could be obfuscated code with Base64, and paste it in a file `weirdpayload.b64`; the part that looks like Base64 because, besides the first 2 bytes, the rest is a standard character of Base64.
+						
 						![screenshot](images/wannacry_104.png)
 						Then if in CMD we execute the command `certutil -decode weirdpayload.b64 output.bin`, it will succeed:
+						
 						![screenshot](images/wannacry_105.png)
 						Ghidra doesn't seem to understand this code, but if we use [`Dogbolt`](https://dogbolt.org/), a compilation of different decompilers, Binary Ninja seems to correctly interpret this binary, which doesn't seem to have anything relevant, besides seeing a function of type `regparm`.
+						
 						![screenshot](images/wannacry_106.png)
 			So recapping the whole function, it retrieves multiple local addresses and tries to establish `SMB` connections with hosts in the local network, looking for vulnerable devices to the EternalBlue exploit, looking if it has the Double Pulsar backdoor, and sending an executable to continue infecting other devices, and if it doesn't have it, it exploits the EternalBlue by passing shellcodes in order to infect other devices.
 		- Routine \_StartAddress_00407840 (128 threads)
 			The first thing that the thread executes, which we can see at the start of the code, is that it sets the seed of `srand` with the addition of the values [`GetTickCount`](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount), the number of milliseconds that have elapsed since the system was started, [`GetCurrentThread`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthread), a pseudo-handle for the thread, [`GetCurrentThreadId`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthreadid), the ID of the thread, and [`time`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/time-time32-time64?view=msvc-170), the seconds elapsed since midnight, January 1 of 1970.
+			
 			![screenshot](images/wannacry_107.png)
 			Then it creates random IPs, with the first octet being different from 127 (`localhost`) and smaller than `224` (`<=223` to not use private IPs as `class D` multicast `224-239` and `class E` experimental `240-255`), and each one of them gets a random value with the function `FUN_00407660()`, and by using `% 255`, it gets a value between `0` and `255`.
+			
 			![screenshot](images/wannacry_108.png)
 			- function FUN_00407660
 				Small function that makes clear by using [`CryptGenRandom`](https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenrandom) that it generates a random value; if the first `if` didn't load a crypto provider, then it will generate a random value with `rand()`.
+				
 				![screenshot](images/wannacry_109.png)
 			The random IP is created with `sprintf` and then checked with the function `FUN_00407480()`, which we have seen before, which checks if it's possible to connect to that IP.
 			- function FUN_00407480
+				
 				![screenshot](images/wannacry_110.png)
 			If it's possible to connect, then it changes the last octet by creating a new IP with `sprintf` and changing the last field, starting from `1` up to `254`. Checking again if each IP is valid, and if it's valid it enters the thread `_StartAddress_00407540` which was the same function as the standalone thread that attempted to infect other devices with EternalBlue and DoublePulsar backdoor using the same methodology.
+			
 			![screenshot](images/wannacry_111.png)
 			- Routine \_StartAddress_00407540
+				
 				![screenshot](images/wannacry_112.png)
 		So recapping the functionality of the `mssecsvc2.0` service with arguments, it attempts to infect other computers by creating one thread that attempts to infect devices from the local network and creating 128 threads that will attempt to infect devices from random global IP addresses, ignoring IPs starting with `127`, or `224` or higher.
 
@@ -335,37 +447,49 @@ So the instance of the `mssecsvc2.0` service with the `-m security` parameter wi
 Now that we're finished with the main code, we need to continue reverse engineering with other files created by the executable to understand how it works.
 
 Everything we have analysed until now is reflected in the next workflow of WannaCry:
+
 ![screenshot](images/wannacry_113.png)
 
 Now we can continue reverse engineering by extracting the resource 1831 in R using Resource Hacker which will extract the embedded resources.
 
 After opening Resource Hacker, we will need to open the malware sample to start extracting the resources. 
+
 ![screenshot](images/wannacry_114.png)
+
 ![screenshot](images/wannacry_115.png)
 
 After loading the sample in Resource Hacker, at first sight we can see the resource folder with the name R, the same one we commented on before with `findResourceA`. 
+
 ![screenshot](images/wannacry_116.png)
 
 After expanding it, we see an identifier `1831 : 1033`, where the `1831` is the resource we were seeking, and `1033` is just the language code, `English (US)`.
+
 ![screenshot](images/wannacry_117.png)
 
 If we click it, we can see its binary content, which at first sight the header of the file is an executable because of the message "`This program cannot be run in DOS mode.`".
+
 ![screenshot](images/wannacry_118.png)
 
 Now, we will save this file as `R1831.bin` and continue analysing it with Ghidra.
+
 ![screenshot](images/wannacry_119.png)
+
 ![screenshot](images/wannacry_120.png)
 
 **General File Information**
 We open the resource `R1831.bin` in [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
+
 ![screenshot](images/wannacry_121.png)
 At the bottom we can see in the scan section that it's a PE file for 32 bits, the packer is Microsoft Visual C++, and it indicates that it has a high entropy.
+
 ![screenshot](images/wannacry_122.png)
 
 If we go to the entropy section, we will see that the entropy is high, and most of the executable is packed; 99% of the content is packed and has an entropy of `7.99547`.
+
 ![screenshot](images/wannacry_123.png)
 
 Besides that, we can see the file properties showing its size:
+
 ![screenshot](images/wannacry_124.png)
 
 To get the file hashes, we can use the following commands from PowerShell:
@@ -373,6 +497,7 @@ To get the file hashes, we can use the following commands from PowerShell:
 > Get-FileHash -Path ".\R1831.bin" -Algorithm SHA1
 > Get-FileHash -Path ".\R1831.bin" -Algorithm SHA256
 > (Get-FileHash -Path ".\R1831.bin" -Algorithm SHA512).Hash
+
 ![screenshot](images/wannacry_125.png)
 
 | Campo            | Valor                                                                                                                                                                                                                                                                                                                         |
@@ -388,113 +513,154 @@ To get the file hashes, we can use the following commands from PowerShell:
 
 
 Now, we will import the binary `R1831.bin` as we did with the WannaCry sample:
+
 ![screenshot](images/wannacry_126.png)
+
 ![screenshot](images/wannacry_127.png)
+
 ![screenshot](images/wannacry_128.png)
 
 ###### Function entry
 Our first step will be going again to the `entry` function, the first executed function in the code:
+
 ![screenshot](images/wannacry_129.png)
 
 Then we will reedit the function signature of the last function, which is the `wWinMain` function, and put the correct data types:
+
 ![screenshot](images/wannacry_130.png)
+
 ![screenshot](images/wannacry_131.png)
 
 ###### Function wWinMain
 Now after entering to the `wWinMain` function the first interesting function is [`GetModuleFileNameA`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea) which retrieves the complete route to a filename specified in the second parameter.
+
 ![screenshot](images/wannacry_132.png)
 
 At first sight the third parameter is 520, in decimal, which refers to the size of the second parameter, which is a single char. It seems to be a decompilation mistake by Ghidra, so we should change the data type to `char[520]` to represent the string and rename the variable to filename.
+
 ![screenshot](images/wannacry_133.png)
+
 ![screenshot](images/wannacry_134.png)
 
 Afterwards, a function is called with a global variable, as can be seen in the assembly code, from a memory address.
+
 ![screenshot](images/wannacry_135.png)
 
 - Function random_string_generator  (FUN_00401225)
 	In the function within `wWinMain`, we see as the first interesting function, ignoring the `memset` calls, [`GetComputerNameW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getcomputernamew) from `kernel32.dll`, which will retrieve the name of the machine.
+	
 	![screenshot](images/wannacry_136.png)
 	
 	We rename the variables to make the parameters clearer. 
+	
 	![screenshot](images/wannacry_137.png)
 	
 	Subsequently, in the rest of the code, the length of the string containing the computer name is obtained, and with a unique seed (`_Seed`) for the `rand` function to generate random numbers, which is calculated by multiplying the seed with each character of the computer name in `ushort` (integer). Then, in the second loop, the number of random characters is calculated randomly between `8` and `15`, generating a random character from the alphabet in each iteration, in the random string that will be generated. In the third loop, the same is done but generating a random number between `11` and `18` digits that will be appended to the generated string. The generated string is the parameter passed to the function, so the function is meant to generate random strings based on a unique seed that is calculated from the computer name.
 	
+	
 	![screenshot](images/wannacry_138.png)
 	
 	We will rename the function along with the parameter, since it is marked as an integer and not as a pointer, which is actually the case.
+	
 	![screenshot](images/wannacry_139.png)
 
 ###### Function wWinMain
 Continuing from before, we obtained the path of the module where the binary is located and a randomly generated string (renaming the global variable).
 
+
 ![screenshot](images/wannacry_140.png)
 
 We have an `if` statement that, based on the received arguments, executes the inner code only if exactly one argument was passed.
+
 ![screenshot](images/wannacry_141.png)
 
 The variable `Str2`, if we inspect it, points to a data value.
+
 ![screenshot](images/wannacry_142.png)
 
 In this data we can perform a `Clear Code Bytes` to view its content.
+
 ![screenshot](images/wannacry_143.png)
+
 ![screenshot](images/wannacry_144.png)
 
 The problem is that the data is no longer the same as before, so we will define it as a `TerminatedCString` type.
+
 ![screenshot](images/wannacry_145.png)
+
 ![screenshot](images/wannacry_146.png)
 
 In addition, the parameter `argv` must be corrected, because it is an `int` pointer but it is actually a `char ***`, since we want to pass the reference of a `char **` (`argv`), so it should be declared like this.
+
 ![screenshot](images/wannacry_147.png)
 
 Within the second `if`, there is a function whose functionality must be reviewed in order to understand the entry condition.
 
 - Function  create_random_directory (FUN_00401b5f)
 	First, we see several `memset` calls that initialize memory positions to zero.
+	
 	![screenshot](images/wannacry_148.png)
 	
 	A bit further down, we convert the random string into a `wide char`, so it is `Unicode` and there won’t be path issues across different languages, and also because the function used works with wide chars. Additionally, the Windows directory path is obtained, which is `C:/` or `C:/Windows`, using [`GetWindowsDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getwindowsdirectoryw).
+	
 	![screenshot](images/wannacry_149.png)
 	
 	Next, we have a `swprintf` that appears to concatenate two values, but the parameter `0x40f40c` has a strange format:
+	
 	![screenshot](images/wannacry_150.png)
+	
 	![screenshot](images/wannacry_151.png)
 	If we perform a clear code bytes or clear with options, we can better see the content. It turns out to be a string; judging by its content, it is "`ProgramData`", which we will assign the type `TerminatedUnicode`, since we are working with `Unicode`.
+	
 	![screenshot](images/wannacry_152.png)
+	
 	![screenshot](images/wannacry_153.png)
+	
 	![screenshot](images/wannacry_154.png)
 	
 	Moreover, if we pay attention, the function expects four parameters, one of them being the size, which is not being used; therefore, we will remove it.
+	
 	![screenshot](images/wannacry_155.png)
+	
 	![screenshot](images/wannacry_156.png)
 	
 	The result is that we obtain the path `C:/ProgramData` or `C:/Windows/ProgramData`.
+	
 	![screenshot](images/wannacry_157.png)
 	
 	Afterwards, it attempts to retrieve the attributes of the previously obtained "`ProgramData`" path.
+	
 	![screenshot](images/wannacry_158.png)
 	
 	It continues by checking if the path does not exist or if the function fails, which we will comment on.
+	
 	![screenshot](images/wannacry_159.png)
 	
 	- Function create_workingdir  (FUN_00401af6)
 		In this function, we see that there are two return values: `0` and `1`, so the function's return type should be `int`.
+		
 		![screenshot](images/wannacry_160.png)
+		
 		![screenshot](images/wannacry_161.png)
+		
 		![screenshot](images/wannacry_162.png)
 		Reviewing the function, we see a series of steps that return `1` if successful, or `0` otherwise. First, it creates the previously saved `ProgramData` directory by calling [`CreateDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), then changes the current working directory of the process with [`SetCurrentDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setcurrentdirectory). If there is no error, it proceeds to the next `if`.
 		
 		In the next `if`, it creates a folder with the previously generated random string name, using the same method. If this is successful, it retrieves the folder attributes with [`GetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileattributesw), which will be used to modify the folder attributes with [`SetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileattributesw). Using `Dvar2 | 6`, the original permissions are maintained but with the addition of `0x2 = FILE_ATTRIBUTE_HIDDEN` (hides it from Explorer) and `0x4 = FILE_ATTRIBUTE_SYSTEM` (marks it as a system folder).
 		
 		Finally, the path of the new folder is saved into the pointer `new_dir`, resulting in either `C:/Windows/ProgramData/{RandomString}` or `C:/ProgramData/{RandomString}`.
+		
 		![screenshot](images/wannacry_163.png)
 		
 		Therefore, with this function, it creates the folder and change the working directory to it, where it will operate.
+		
 		![screenshot](images/wannacry_164.png)
 	Returning to the previous function, if it also fails, the malware will try to create a folder in `C:/Windows/Intel` or `C:/Intel` with the random string folder. If this also fails, it will use [`GetTempPathW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppathw) to obtain a path similar to `C:\Users\user\AppData\Local\Temp\`, from which it will remove the trailing backslash and create the random string directory inside the Temp folder.
+	
 	![screenshot](images/wannacry_165.png)
 	
 	Based on that, we will rename the function to `create_random_directory`.
+	
 	![screenshot](images/wannacry_166.png)
 
 ###### Function wWinMain
@@ -503,169 +669,229 @@ Once the `create_random_directory()` function is understood, we can continue ana
 First, we compare the second argument obtained from `argv` with the string `/i`. If they are equal, the `strcmp` comparison will return `0`; therefore, to enter the second `if`, the parameter passed when calling resource `1831` must be equal to `/i`, and the previously mentioned function must complete successfully, returning whether a hidden working directory was created to operate on.
 
 Once both conditions are met, the program attempts to copy the current executable using [`CopyFileA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-copyfilea) with the name `tasksche.exe` and tries to get its attributes via [`GetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileattributesw). If this call succeeds, another function is invoked, which we will analyse next to understand what must happen to terminate.
+
 ![screenshot](images/wannacry_167.png)
 
 - Function create_or_start_tasksche_service  (FUN_00401f5d)
 	After making some variables more clear and fixing the return type, we have the next code:
+	
 	![screenshot](images/wannacry_168.png)
 	In the code we can see that in the function [`GetFullPathNameA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfullpathnamea) we're getting the complete path of the copied file `tasksche.exe`, which later is used as a parameter in a function that we will analyse.
 	- Function create_tasksche_service (FUN_00401ce8)
 		This function, what it does first, is open the Service Control Manager (SCM) of Windows with [`OpenSCManagerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagera) with the `SC_MANAGER_ALL_ACCESS (0xF003F)` rights, all permissions. Later it tries to open a service with the previous random string generated, giving it all the permissions with `SERVICE_ALL_ACCESS (0xF01FF)` rights. If the service exists, it is started and the handles are closed. If the service does not exist, it is created by building a command string in `cmd_command` using `sprintf`, which will be `cmd.exe /c {Ruta tasksche.exe}`, where `/c` causes the command prompt to close once the command finishes. The service is created with [`CreateServiceA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-createservicea), using the service name displaying the random string, and configured to run with the specified command. If the service is successfully created, it is started with [`StartServiceA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea), and the handles are closed afterward.
+		
 		![screenshot](images/wannacry_169.png)
 		The function therefore creates the `tasksche.exe` service, so we will rename it to `create_tasksche_service`:
+		
 		![screenshot](images/wannacry_170.png)
 	Therefore, if the `tasksche` service is created and another function (which we will analyze later) succeeds, the function will complete successfully.
+	
 	![screenshot](images/wannacry_171.png)
 	- Function get_mutex_tasksche (FUN_00401eff)
 		This function attempts to acquire a mutex with a specific name, `Global\MsWinZonesCacheCounterMutexA0`. If it fails, it will retry `tries_number` times, waiting one second between each attempt. If the mutex already exists, it returns `1`; if all attempts fail, it returns `0`. This mechanism is used to prevent multiple instances of the malware from running simultaneously, avoiding double infection and remaining stealthier by continuously checking if another instance is already executing.
+		
 		![screenshot](images/wannacry_172.png)
 	Therefore, if the service is created and the mutex is acquired, the function returns `1`.
+	
 	![screenshot](images/wannacry_173.png)
 	If there is no mutex, meaning another active instance exists, the code will enter a function that we will analyse next, passing the path of `tasksche` as a parameter.
+	
 	![screenshot](images/wannacry_174.png)
 	- Function run_process_params (FUN_00401064)
 		The function receives the process path, a timeout, and a process state. It attempts to create the process using the information provided with [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa).
+		
 		![screenshot](images/wannacry_175.png)
 		From the given information, there are two start-up process information (`startup_info`) attributes: `wShowWindow` set to 0, which makes the window hidden, and `dwFlags` set to 1, which enables this behaviour.
+		
 		![screenshot](images/wannacry_176.png)
 		Subsequently, if the process creation fails, the function returns `0`. Otherwise, in the `else` branch, it first checks if there is a timeout specified. If there is, it waits for the process to finish using [`WaitForSingleObject`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject) for the given timeout duration. If the process does not finish within that time, it is terminated with [`TerminateProcess`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess). If a non-null process status pointer is specified, the exit code of the process is obtained with [`GetExitCodeProcess`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess) and stored. Finally, the handles are closed and the function returns `1`.
+		
 		![screenshot](images/wannacry_177.png)
 		Based on the functionality, the function will be renamed to `run_process_params`:
+		
 		![screenshot](images/wannacry_178.png)
 	Therefore, if there was no previous instance running, we manually create the process and verify that it is running.
+	
 	![screenshot](images/wannacry_179.png)
 	Based on the functionality, the function checks if a tasksche service is running, and if it is not, it starts it. It will be renamed to `create_or_start_tasksche_service`.
+	
 	![screenshot](images/wannacry_180.png)
 ###### Function wWinMain
 Recapping the implication of this function; if the resource is copied to `tasksche.exe` and the attributes are obtained (indicating it exists), and we try to manually create or start the service and it works correctly, the function ends returning `0`. Otherwise, the program execution continues.
+
 ![screenshot](images/wannacry_181.png)
 Subsequently, if `string_param_i` is used as a variable to point as a pointer to the last position of the backslash, it is replaced with a null terminator, so as to reference only the path and not the included file.
+
 ![screenshot](images/wannacry_182.png)
 
 And with that path, we set it as the current working directory.
+
 ![screenshot](images/wannacry_183.png)
 
 After this, there are three other functions to analyse:
+
 ![screenshot](images/wannacry_184.png)
 
 In the second function, if we look at the assembly, we can see that it takes an additional parameter, since the string `"WNcry@2ol7"` is pushed onto the stack:
+
 ![screenshot](images/wannacry_185.png)
 
 Therefore, we modify the function signature to accept an additional parameter.
+
 ![screenshot](images/wannacry_186.png)
 ###### Function  set_get_registry_currentdirectory (FUN_004010fd)
 In the function we first have a pointer at the end of the `software_string` `Software\`, with `software_string_buffer`, and some `memset` that zeroes a range of memory.
+
 ![screenshot](images/wannacry_187.png)
 
 Later with the `software_string_buffer`, we add at the end `WanaCrypt0r`, giving the result of `Software\Wanacrypt0r`.
+
 ![screenshot](images/wannacry_188.png)
 
 After that, in a `do-while`, it tries to create first with [`RegCreateKeyW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regcreatekeyw) under the registry key `HKEY_LOCAL_MACHINE (0x80000002)` the key `Software\Wanacrypt0r`, and if it fails, because of not enough permissions, it tries with the registry key `HKEY_CURRENT_USER (0x80000001)`; source: [`Registry Cmdlets: Working with the Registry - Scripting Blog`](https://devblogs.microsoft.com/scripting/registry-cmdlets-working-with-the-registry/). After being able to create the registry key, the next is based on the `registry_action` variable passed as a parameter:
 - registry_action = 0 -> If it's zero, then it retrieves the value from `HKEY_{LOCAL_MACHINE | CURRENT_USER}/Software/Wanacrypt0r/wd` with [`RegQueryValueExA`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexa) and then uses the value, if the query was successful, to change the current directory with [`SetCurrentDirectoryA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setcurrentdirectory). 
 - registry_action != 0 -> If the value of `registry_action` was not zero, then it will try to get the current directory with [`GetCurrentDirectoryA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getcurrentdirectory) and save in the data of the value `wd` on `HKEY_{LOCAL_MACHINE | CURRENT_USER}/Software/Wanacrypt0r` with [`RegSetValueExA`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsetvalueexa).
+
 ![screenshot](images/wannacry_189.png)
 
 With this information, we will rename the function to `set_get_registry_currentdirectory`:
+
 ![screenshot](images/wannacry_190.png)
 
 ###### Function extract_encrypted_resource (FUN_00401dab)
 At first sight what we can see is that it's trying to get an embedded resource, as 1831 originally did. It starts by trying to find the resource called `2058` of type `XIA` with [`FindResourceA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-findresourcea), and if the resource is found, we get the handle of the resource with [`LoadResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadresource), lock it with [`LockResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-lockresource) (which actually just gets the pointer to the memory containing the resource), and get the size in bytes of the resource with [`SizeofResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-sizeofresource). After that it calls another function that will need to be analysed, which receives the pointer to the resource, the size, and the weird string.
+
 ![screenshot](images/wannacry_191.png)
 
 - FUN_004075ad
 This function calls another function in which, at first, there is nothing relevant, besides initially passing the resource pointer, its size, and the weird string.
+
 ![screenshot](images/wannacry_192.png)
 	- FUN_004074a4
 	If we enter the next function, `FUN_004074a4()` there are too many new functions without anything interesting at first sight, mainly because Ghidra seems to not decompile it correctly. Moreover, if you try to analyse each function, you will see more new functions to analyse, so after looking at the different functions, there is one that is quite interesting.
+	
 	![screenshot](images/wannacry_193.png)
 	The interesting function is the function `FUN_00406b8e()` which is receiving the function parameters, which are not correctly shown because of Ghidra, but if you look at assembly, you see it references the stack variables passed.
+	
 	![screenshot](images/wannacry_194.png)
+	
 	![screenshot](images/wannacry_195.png)
 		- FUN_00406b8e
 		We can see in the function that we call another interesting function with the same function parameters, the function `FUN_00405bae()`.
+		 
 		 ![screenshot](images/wannacry_196.png)
 			- FUN_00405bae
 			This function creates a file with [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea) and sets the pointer in the file with [`SetFilePointer`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointer). So it's apparently creating a file with the embedded resource and returning the pointer of the file.
+			
 			![screenshot](images/wannacry_197.png)
 			So after creating the file, the next and more important function is `FUN_00405fe2()`.
+			
 			![screenshot](images/wannacry_198.png)
 			- FUN_00405fe2
 			If we look at the assembly code, we can clearly see a string that has the signature `unzip` on it, so it seems the entire function with the other things is just extracting the resource, which seems to be zipped, and probably the passed string parameter was the decryption key.
+			
 			![screenshot](images/wannacry_199.png)
 
 So after this analysis, we will name the function `extract_encrypted_resource`:
+
 ![screenshot](images/wannacry_200.png)
 
 ##### Resource 2058 - Extracting binaries
 Before doing anything, we will extract the encrypted resource embedded in the binary `1831.bin` as a `XIA` resource with Resource Hacker as we did before and decompress the resource with WinRAR; that should do the task.
 
 After opening `1831.bin` in Resource Hacker we can see the resource 2058 that we will decompress.
+
 ![screenshot](images/wannacry_201.png)
 
 The resource we will save it as `.res`, and change it to the `.XIA` extension.
+
 ![screenshot](images/wannacry_202.png)
+
 ![screenshot](images/wannacry_203.png)
 
 Then decompress it with WinRAR, which, after opening it, we can see multiple files:
+
 ![screenshot](images/wannacry_204.png)
 To decompress it, it will ask for a password, which the weird string "`WNcry@2ol7`" we have seen before is the decryption key.
 
 So, we have two new executables, six `.wnry` files, and a folder `msg` with also `.wnry` files, which seem to be based on the user language. 
+
 ![screenshot](images/wannacry_205.png)
+
 ![screenshot](images/wannacry_206.png)
 So we will check with the Hex viewer and editor (program HxD) the different files; besides the `msg` files, where we will only check the English one:
 
 - b.wnry
 	At `b.wnry`, when inspecting the binary, there is not any plain text, but if we check the first two bytes `42 4D` in the [`signature list`](https://www.garykessler.net/library/file_sigs.html), it indicates it is a `.bmp` file (bitmap, which is an image), so we will copy this file and put the `.bmp` extension on it.
+	
 	![screenshot](images/wannacry_207.png)
 	So we copy and change the extension and open the image. Which seems to be an image to be displayed when the user gets infected.
+	
 	![screenshot](images/wannacry_208.png)
+	
 	![screenshot](images/wannacry_209.png)
 - c.wnry
 	At `c.wnry`, there is plain text that has five Tor URLs to access the Dark Web (because of the `.onion` URLs). Also, there is a download URL for the Tor browser.
+	
 	![screenshot](images/wannacry_210.png)
 - r.wnry
 	At `r.wnry`, there is also plain text, which has a long text that seems to explain to the infected user that his files are encrypted and that he has to pay a certain amount of fees for the decryption to a specific bitcoin address (to be replaced in the placeholder `%s`).
+	
 	![screenshot](images/wannacry_211.png)
 - s.wnry
 	At `s.wnry`, there are some Tor files and components mentioned, which if we take the first 4 bytes of the file `50 4B 03 04` and look for the signature in a [`signature list`](https://www.garykessler.net/library/file_sigs.html), it indicates is a zip file. 
+	
 	![screenshot](images/wannacry_212.png)
 	If we try to open the file in WinRAR, it has two folders; an empty one named `Data` and another one named `Tor`, which has the files needed to use the Tor browser without installing it (portable program).
+	
 	![screenshot](images/wannacry_213.png)
+	
 	![screenshot](images/wannacry_214.png)
 - t.wnry
 	At `t.wnry`, we don't have any generic signature, but the file starts with the text `WANACRY!`, which seems to be a custom signature and a specific file that will have special treatment in the program.
+	
 	![screenshot](images/wannacry_215.png)
 - u.wnry
 	At `u.wnry`, we can see looking at the [`signature list`](https://www.garykessler.net/library/file_sigs.html) that the first two bytes `4D 5A` reference a Windows/DOS executable file. Also, it's easy to see by the plain text, "`!This program cannot be run in DOS mode`".
+	
 	![screenshot](images/wannacry_216.png)
 - m_english.wnry (msg folder)
 	At `m_english.wnry`, we can see looking at the [`signature list`](https://www.garykessler.net/library/file_sigs.html) that the first 5 bytes `7B 5C 72 74 66` reference a rich text format word processing file (`.rtf`) that has multiple formats.
+	
 	![screenshot](images/wannacry_217.png)
 	We will copy the file and change the extension to `.rtf` to make it easier to read. Inside the file we can see how the group responsible for the infection is claiming that the only way to recover the files is to pay them a certain amount of bitcoins.
+	
 	![screenshot](images/wannacry_218.png)
+	
 	![screenshot](images/wannacry_219.png)
 
 ##### Resource 1831 (tasksche.exe)
 ###### Function select_and_write_bitcoin_torinfo (FUN_00401e9e)
 At first sight we can see some bitcoin legacy addresses stored on an array, based on the 34 characters, which is common for bitcoin addresses, and that it starts with one based on the glossary of bitcoin design: https://bitcoin.design/guide/glossary/address/#legacy-address---p2pkh
+
 ![screenshot](images/wannacry_220.png)
 
 Also, `local_31c` and `local_26a` are next to each other, and it usually means a badly decompiled variable. So we will change the type of the first one and make the array with the sum of both sizes to merge both local variables.
+
 ![screenshot](images/wannacry_221.png)
  So it looks like this now:
+ 
  ![screenshot](images/wannacry_222.png)
 Before proceeding with the analysis, of this function we will analyse the function `FUN_00401000()` .
 - Function write_or_read_cwnry (FUN_00401000)
 	In this function based on the `op_type`, if zero it will be `wb`, while different from zero it will be `rb` at the variable `_Mode`. Which also later, after opening the file we decrypted and extracted from the resource `2058.XIA`, the file `c.wnry`, we will write in the file with the buffer content the first 780 bytes (the actual size) if `op_type = 0`, and if `op_type != 0`, then it will read from the file and write it at the buffer. 
+	
 	![screenshot](images/wannacry_223.png)
 	Taking into account the functionality, we will rename the function to `write_or_read_cwnry`.
+	
 	![screenshot](images/wannacry_224.png)
 
 So the function loads Bitcoin addresses, and with the buffer `tor_links` retrieves the Tor information, if the first read is successful, because of the one passed as a parameter.
+
 ![screenshot](images/wannacry_225.png)
 
 Then we pick one of the three `Bitcoin` addresses randomly and copy it to the buffer with an offset of `0xb2`, which, comparing it to `c.wnry`, which also occupies 780 bytes, all the content, we will put it on the highlighted section as the start of the pointer to put the bitcoin address before the Tor onion URLs, and write it back to `c.wnry` to update it.
+
 ![screenshot](images/wannacry_226.png)
 
 Then the list of bitcoin addresses, which we can check at [`Blockchain Explorer`](https://www.blockchain.com/explorer/search) to see the transactions, are:
@@ -674,6 +900,7 @@ Then the list of bitcoin addresses, which we can check at [`Blockchain Explorer`
 - `115p7UMMngoj1pMvkpHijcRdfJNXj6LrLn`
 
 So we will rename the function to `select_and_write_bitcoin_torinfo`:
+
 ![screenshot](images/wannacry_227.png)
 
 ###### Function wWinMain
@@ -681,6 +908,7 @@ So recapping the three functions we have been analysing:
 - set_get_registry_currentdirectory(): Saved in the register the current working directory at the register key `KEY_{LOCAL_MACHINE | CURRENT_USER}/Software/Wanacrypt0r` 
 - extract_encrypted_resource(): Extracted the resource `2058.XIA` and decrypted it with the key `WNcry@2ol7`.
 - select_and_write_bitcoin_torinfo(): Added to `c.wnry` a randomly chosen Bitcoin address before the Tor links.
+
 ![screenshot](images/wannacry_228.png)
 
 After that we execute the function `run_process_params()` twice with the next parameter to execute:
@@ -688,13 +916,16 @@ After that we execute the function `run_process_params()` twice with the next pa
 	Over the current directory (because of the point), it will execute the command "`attrib +h .`", which will hide the directory and its contents (because of `+h`), based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/attrib).
 - `icacls . /grant Everyone:F /T /C /Q`
 	Over the current directory (because of the point), it will execute the command "`icacls . /grant Everyone:F /T /C /Q`" to remove possible restrictions of some files by granting all the users complete access (`grant Everyone:F`) recursively on all the file contents of the directory (`/T`), continuing his execution despite errors (`/C`) and suppressing successful messages (`/Q`) based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls).
+
 ![screenshot](images/wannacry_229.png)
 
 The next function is new, so we will analyse it:
+
 ![screenshot](images/wannacry_230.png)
 
 ###### Function init_function_ptr (FUN_0040170a)
 This function at first sight loads a variety of `kernel32.dll` function pointers into a global variable. But we will need to check what the function `FUN_00401a45()` does to confirm its whole behaviour.
+
 ![screenshot](images/wannacry_231.png)
 
 - init_crypto_function_ptr (FUN_00401a45)
@@ -708,11 +939,14 @@ This function at first sight loads a variety of `kernel32.dll` function pointers
 | `cryptEncrypt`         | `CryptEncrypt`         | Encrypts data using a specified key                                      |
 | `cryptDecrypt`         | `cryptDecrypt`         | Decrypts data                                                            |
 | `_cryptGenKey`         | `CryptGenKey`          | Generates a cryptographic key (symmetric/asymmetric, depending on flags) |
+	
 	![screenshot](images/wannacry_232.png)The malware is probably being prepared to start encrypting and decrypting, based on the function pointers that it's retrieving. If the `cryptAcquireContexA` is already loaded, then it will return a `1`, and if it's not loaded, it will try to load all the function pointers, and if it succeeds, it will return a `1` also, but if it fails, it will return a `0`. 
 	Based on this, we will rename the function to `init_crypto_function_ptr`:
+	
 	![screenshot](images/wannacry_233.png)
 
 So after clearing up what the function does, if the `init_crypto_function_ptr` is successful, then it will enter the first `if` which, which checks with another `if`, if `createFileW` is actually initialised, and if it is, then it returns a `1`. If not, then it will attempt to load the next functions, that if they're all correctly loaded then it will return a `1` and if any of the function fails it will return a `0`.
+
 ![screenshot](images/wannacry_234.png)
 The functions loaded from the library `kernel32.dll` are the following:
 
@@ -726,14 +960,18 @@ The functions loaded from the library `kernel32.dll` are the following:
 |`deleteFileW`|`DeleteFileW`|Deletes a file (Unicode)|
 |`_closeHandle`|`CloseHandle`|Closes an open object handle (e.g., file, process, thread)|
 Based on the functionality of the described function, we will rename it to `init_function_ptr`:
+
 ![screenshot](images/wannacry_235.png)
 
 ###### Function wWinMain
 So if the previous functions are loaded, then we enter the if and execute two functions, depending on the second to enter the next `if`.
+
 ![screenshot](images/wannacry_236.png)
 If we look at both functions, the first function `FUN_004012fd()` looks somewhat strange, as it calls different functions and has some variable calculations.
+
 ![screenshot](images/wannacry_237.png)
 But the interesting part comes when the function `FUN_00401437()` has the convenience call **`__thiscall`** which is exclusive from `C++`, as we can corroborate from the [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/cpp/thiscall).
+
 ![screenshot](images/wannacry_238.png)
 
 We can conclude from what we have seen that the program was written in `C++` and that the function `FUN_004012fd()` is not correctly decompiled, but it resembles a constructor by its behaviour and structure, mainly because if we start to explore the functions, we reach a function that has an `operator_delete` that is used to delete objects from the memory, as we can see in the [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/cpp/delete-operator-cpp). There is the [Pharos Framework](https://github.com/cmu-sei/pharos/tree/master?tab=readme-ov-file) with the tool `OOAnalyzer`, which now has moved the Ghidra functionality to the [`Kaiju Ghidra Plugin`](https://github.com/CERTCC/kaiju) that helps reverse engineering and improves the decompilation of Ghidra, which is too resource-exhausting, and is not that relevant to our static analysis, so we will leave it as it is.
@@ -742,75 +980,103 @@ Then we will analyse the function `FUN_00401437()`.
 
 - function import_rsa_key (FUN_00401437)
 	At first sight there is a significant amount of code, which is to handle the object (this).
+	
 	![screenshot](images/wannacry_239.png)
 	First we have to check the function `FUN_00401861()`.
 		- import_key (FUN_00401861)
 		We also have to check the first function `FUN_00420182c()`.
+		
 		![screenshot](images/wannacry_240.png)
 			- acquire_cryptocontext (FUN_00420182c)
 			Here we acquire the crypto context, which will make us able to make cryptographic operations.
+			
 			![screenshot](images/wannacry_241.png)
 		If we successfully retrieve the crypto context, we import the RSA2 key and if it's done correctly, then the function returns `1`.
+		
 		![screenshot](images/wannacry_242.png)
 		If the import failed, then it tries with the function `FUN_004018f9()`.
 			- import_key_file (FUN_004018f9)
 			This function attempts to create a file with the contents of `param_3` and later imports the key into `param_1` from `param_2`.
+			
 			![screenshot](images/wannacry_243.png)
 		So if the import from the memory fails, it tries it from a file. And the last function `FUN_004018b9()` releases the resources.
 		Based on the inner functions, the function will be renamed to `import_key`:
+		
 		![screenshot](images/wannacry_244.png)
 	Based on the functions, it will be renamed to `import_rsa_key`:
+	
 	![screenshot](images/wannacry_245.png)
 
 So if the `import_rsa_key()` function is done correctly, then it enters the `if` and checks the functionality of `FUN_004014a6()`, which has a reference to the `t.wnry` file.
+
 ![screenshot](images/wannacry_246.png)
 - decrypt\_twnry (FUN_004014a6)
+	
 	![screenshot](images/wannacry_247.png)
 	The function is a function of an object because of `__thiscall` and `*this` reference. The first interesting part comes when it attempts to open the file `t.wnry`, the one with the unidentifiable content with a custom signature, with [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea), so that if the file is opened successfully, then with [`GetFileSizeEx`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfilesizeex) we retrieve the size of the file, checking that it doesn't surpass 100MB (`0x6400000`). If it doesn't surpass that size, then it compares the first 8 bytes of `t.wnry` and compares it to the string `WANACRY!`, which is exactly the same custom signature we commented on before. 
+	
 	![screenshot](images/wannacry_248.png)
 	Then we read the next 4 bytes, which, if it equals 256, then it continues reading. Which, based on the next 4 bytes in `t.wnry` in little endian, is actually 256:
+	
 	![screenshot](images/wannacry_249.png)
 	After that it will read and save in this (object) 256 bytes of a supposedly AES key encrypted with the RSA2 key we loaded from memory (because of the size, the context, and the next function). After that it reads 4 mysterious bytes, probably just filler data. After that it reads 8 mysterious bytes that are also used later, which if checked at HxD is 65536. 
+	
 	![screenshot](images/wannacry_250.png)
 	And with the `header_size_4` variable (256) and the 256 bytes of the suspected AES key encrypted with RSA2, because of the `0x4c8` being the same memory position offset where the 256 bytes read have been saved, a function of the object is called `FUN_004019e1()`.
 	
 	- decrypt_w_rsakey (FUN_004019e1)
 		The first fix will be making the correct variables for the params, where the second parameter, the 256 bytes read, has to be a `BYTE` pointer. After fixing and tidying up the code, we can see that the object tries to decrypt with a key, probably the RSA2 key we retrieved from memory, with the 256 bytes of content we passed with data, decrypting its content onto `data_out`, which will be the AES key.
+		
 		![screenshot](images/wannacry_251.png)
 		Based on the functionality, the function will be renamed to `decrypt_w_rsakey`.
+		
 		![screenshot](images/wannacry_252.png)
 	After that, there are two mysterious functions that are hard to understand and correctly explain their behaviour: `FUN_00402a76()` and `FUN_00403a77()`.
+	
 	![screenshot](images/wannacry_253.png)
 	- aes_function_1 (FUN_00402a76)
 		Checking the parameters that we pass, we have the decrypted content of `t.wnry`, its size, and a byte `0x10` (16 bytes) that doesn't make sense until we correlationate it with the code, because AES uses 128-bit blocks (16 bytes). Also the PTR_DAT_0040f578 references an address of 32 bytes (256 bits). 
+		
 		![screenshot](images/wannacry_254.png)
 		As an example of why it has to be an AES function, there is a check of `param_3` which is `decrypt_twnry_size`, that checks if it's 16 (128 bits), 24 (192 bits) or 32 (256 bits), the same exclusive keys that the AES algorithm can use based on [`NIST DOCS`](https://web.archive.org/web/20150407153905/http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf), and if it's not the same, it throws an exception.
+		
 		![screenshot](images/wannacry_255.png)
 		But the most important thing and the proof that it is an AES function is that in the part where it starts doing `XOR` operations, common in AES, it interacts with a pointer of data that has the same values as the `forward S-Box` used in the SubBytes step of AES encryption of 256 bytes. 
 		This is the table of the [`NIST DOCS`](https://web.archive.org/web/20150407153905/http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf):
+		
 		![screenshot](images/wannacry_256.png)
 		And this is the pointer `DAT_004089fc` being used in the function:
+		
 		![screenshot](images/wannacry_257.png)
+		
 		![screenshot](images/wannacry_258.png)
 		Based on the functionality, we will rename the function to `aes_function_1`:
+		
 		![screenshot](images/wannacry_259.png)
 	- aes_function_2 (FUN_00403a77)
 		There are also `XOR` operations and some pointer data that looks like `custom S-box`; the function will be renamed to `aes_function_2`:
+		
 		![screenshot](images/wannacry_260.png)
 		Also the second parameter is the RSA2 key that we have seen in `decrypt_w_rsakey()`. Which, based on the parameters, will decrypt with the AES key the rest of the content, based on the full size to read with `local_28.s.LowPart`, and save it in the `large_buffer`.
+		
 		![screenshot](images/wannacry_261.png)
 		It also has a characteristic table used in the AES decryption process, the `inverse S-BOX` table, in the pointer of data `DAT_00408afc`. It's found in `aes_function2() > FUN_00403797 > FUN_004031bc`.
+		
 		![screenshot](images/wannacry_262.png)
+		
 		![screenshot](images/wannacry_263.png)
 	Based on the whole behaviour, it takes the first 8 bytes and compares it with `WANACRY!` which is the custom signature and we have seen it in `t.wnry`. 
+	
 	![screenshot](images/wannacry_264.png)
 	Then it takes 4 bytes that represent the AES key encrypted with the RSA2 key size, which is 256.
 	
 	We use the size we retrieved to obtain the next 256 bytes that we will decrypt with the RSA2 key we found in memory to get the encrypted AES key.
 	
 	After that, it takes 4 mysterious bytes that seem to be filler data.
+	
 	![screenshot](images/wannacry_265.png)
 	And later, 8 bytes that will be used to allocate a huge buffer of data as an amount of data to allocate. The size is 65536.
+	
 	![screenshot](images/wannacry_266.png)
 	Then the rest of the data (65536 bytes) is decrypted with the decrypted AES key.
 	
@@ -824,14 +1090,18 @@ So if the `import_rsa_key()` function is done correctly, then it enters the `if`
 | **Encrypted payload** | `0x0118`           | `0x10117`        | 65,536       | Encrypted data to be decrypted using the AES key                          |
 	And the function returns the decrypted payload.
 	Based on the functionality, we will rename the function to `decrypt_twnry`:
+	
 	![screenshot](images/wannacry_267.png)
 
 
 ##### DLL Mysterious_executable - Retrieving decrypted payload
 First we will need to retrieve the RSA2 key we had in the `import_key()` function and select all the data.
+
 ![screenshot](images/wannacry_268.png)
 Then we right-click and select the `Copy Special...` option and choose the `Byte String` copy option.
+
 ![screenshot](images/wannacry_269.png)
+
 ![screenshot](images/wannacry_270.png)
 
 So the RSA2 key in hex is:
@@ -839,23 +1109,31 @@ So the RSA2 key in hex is:
 
 Now we will need to retrieve with HxD the AES encrypted key and the payload-encrypted data in `t.wnry` and also put the previous RSA2 key in another file:
 To get a range of data selected in HxD, you will need to go to the `Edit > Select` block or press `Ctrl + E`.
+
 ![screenshot](images/wannacry_271.png)
 Then you will have to specify a `Start-offset` and a `End-offset` or a `Length`:
+
 ![screenshot](images/wannacry_272.png)
 - encrypted_aes_key.bin:
 	First select the data range and copy it.
+	
 	![screenshot](images/wannacry_273.png)
 	Now create a new file on `File > New` or press `Ctrl+N`. 
+	
 	![screenshot](images/wannacry_274.png)
 	And now right-click and `Paste insert` or `Ctrl+V` at the start.
+	
 	![screenshot](images/wannacry_275.png)
 	And save it in `File > Save as...`.
 - encrypted_payload.bin:
 	The same as the previous one.
+	
 	![screenshot](images/wannacry_276.png)
 With this done, now we have the encrypted files:
+
 ![screenshot](images/wannacry_277.png)
 - rsa2key.bin:
+	
 	![screenshot](images/wannacry_278.png)
 
 | Field Name            | Start Offset (hex) | End Offset (hex) | Size (bytes) | Description                                      |
@@ -949,6 +1227,7 @@ int main()
 ```
 
 The result will be:
+
 ![screenshot](images/wannacry_279.png)
 
 With these resources, we will create a script in Python to decrypt the rest of the data with the AES key.
@@ -958,10 +1237,12 @@ First, download Python from the official website.
 
 After that, with CMD, you should retrieve the Python version to confirm it was correctly installed with:
 > python --version
+
 ![screenshot](images/wannacry_280.png)
 
 To use cryptographic operations, we will download the [`PyCryptodome package`](https://pypi.org/project/pycryptodome/) by using the next command with CMD:
 >pip install pycryptodome
+
 ![screenshot](images/wannacry_281.png)
 
 Then with this script we will decipher the rest of the data with the decrypted AES key.
@@ -992,11 +1273,14 @@ print("Decryption complete: mysterious_executable.bin created.")
 ```
 
 If everything goes right the prompt `Decryption complete: mysterious_executable.bin created.` will appear.
+
 ![screenshot](images/wannacry_282.png)
 
 Then looking at `mysterious_executable.bin`, we can see it's an executable because of the signature (`MZ`):
+
 ![screenshot](images/wannacry_283.png)
 Also, if we look at the header `PE\0\0` signature, we will see some bits later in the characteristics field, based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format), the `0x2000` bit is activated, which is the flag `IMAGE_FILE_DLL`, confirming it's a DLL file.
+
 ![screenshot](images/wannacry_284.png)
 
 | Offset | Size | Field                    | Description                                                              |
@@ -1019,32 +1303,41 @@ Also, if we look at the header `PE\0\0` signature, we will see some bits later i
 | `IMAGE_FILE_DLL`                 | `0x2000` | The image file is a DLL.                              |
 ##### Resource 1831.bin (tasksche.exe)
 The rest of the `wWinMain` function is just creating and executing the DLL we decrypted.
+
 ![screenshot](images/wannacry_285.png)
 
 - FUN_004021bd
 	We can see that it first checks if the payload starts with `MZ`, so it's effectively checking the same payload.
+	
 	![screenshot](images/wannacry_286.png)
 - FUN_00402924
 	Starts the decrypted payload (DLL) with his `TaskStart` function.
+	
 	![screenshot](images/wannacry_287.png)
 
 The workflow of `1831.bin` is the next one:
+
 ![screenshot](images/wannacry_288.png)
 ##### DLL Mysterious_executable
 **General File Information**
 To check general information about `mysterious_executable.bin`, we will use the program [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
+
 ![screenshot](images/wannacry_289.png)
 At the bottom we can see in the scan section that it's a PE file for 32 bits, the packer is Microsoft Visual C++, and it indicates that it has a high entropy.
+
 ![screenshot](images/wannacry_290.png)
 If we go to the entropy section, we will see that the entropy is high, and most of the executable is packed; 22% of the content is packed and has an entropy of `6.27944`.
+
 ![screenshot](images/wannacry_291.png)
 Besides that, we can see the file properties showing its size:
+
 ![screenshot](images/wannacry_292.png)
 To get the file hashes, we can use the following commands from PowerShell:
 > Get-FileHash -Path ".\mysterious_executable.bin" -Algorithm MD5
 > Get-FileHash -Path ".\mysterious_executable.bin" -Algorithm SHA1
 > Get-FileHash -Path ".\mysterious_executable.bin" -Algorithm SHA256
 > (Get-FileHash -Path ".\mysterious_executable.bin" -Algorithm SHA512).Hash
+
 ![screenshot](images/wannacry_293.png)
 
 | Campo            | Valor                                                                                                                                                                                                                                                                                                                         |
@@ -1060,16 +1353,21 @@ To get the file hashes, we can use the following commands from PowerShell:
 
 
 Now we will import the binary `mysterious_executable.bin` as we did with the previous binary samples.
+
 ![screenshot](images/wannacry_294.png)
 Same settings as before.
 
 Now we first go to check the strings, on `Window > Defined Strings`, to see a general sight of the program.
+
 ![screenshot](images/wannacry_295.png)
 There we can see at first sight multiple Windows functions thats interact with files.
+
 ![screenshot](images/wannacry_296.png)
 A vast amount of file extensions.
+
 ![screenshot](images/wannacry_297.png)
 Cryptographic functions, more file functions, and another executable, `@WanaDecryptor@.exe`, which, by the name, could be the program responsible for decrypting the encrypted files by the ransomware when the payment is successful.
+
 ![screenshot](images/wannacry_298.png)
 Based on the context and the strings of the program, this executable starts the encrypting process of the user files because it's already infected. Because we will be analysing evasion techniques, this executable will be out of scope, as the infection was already done.
 
@@ -1098,6 +1396,7 @@ void FUN_10004cd0(void)
 cmd.exe /c reg add HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v "oqywognupbonhr845" /t REG_SZ /d "\"\"" /f Users\ANON\Desktop\Malware Samples\WannaCry Bueno\python_script\tasksche.exe\"" /f
 ```
 .
+	
 	![screenshot](images/wannacry_300.png)
 ```c
 void __cdecl FUN_100047f0(undefined4 param_1)
@@ -1179,6 +1478,7 @@ cscript.exe //nologo m.vbs
 del m.vbs
 ```
 .
+	
 	![screenshot](images/wannacry_301.png)
 
 #### Kill processes
@@ -1206,6 +1506,7 @@ void FUN_100057c0(void)
 - mysterious_executable.bin =>TaskStart -> FUN_100057c0
 	If we look at one line, we can see that `@WanaDecryptor@.exe` is executed with an extra parameter, `vs`. `FUN_10001080()` executes a CMD process with the following arguments:
 	"`cmd.exe /c start /b @WanaDecryptor@.exe vs`"
+	
 	![screenshot](images/wannacry_302.png)
 ```c
 void FUN_100057c0(void)
@@ -1222,6 +1523,7 @@ void FUN_100057c0(void)
 To continue analysing, this we will import u.wnry in Ghidra, which is `@WanaDecryptor@.exe`, and analyse it as always.
 - @WanaDecryptor@.exe => UndefinedFunction_004064d0
 	When `@WanaDecryptor@.exe` is executed with the `vs` argument, compared at `DAT_004210a0`:
+	
 	![screenshot](images/wannacry_303.png)
 	Then it waits 10 seconds and then runs the following command that deletes all [`shadow copies`](https://learn.microsoft.com/en-us/windows-server/storage/file-server/volume-shadow-copy-service), disables the system's recovery options, and deletes the [`wbadmin`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wbadmin) catalogue.
 ```
@@ -1504,65 +1806,92 @@ The program has a list of extensions that will encrypt, which can be seen in def
 ### WannaCry Malware Behaviour Analysis
 If we execute the malware, we can see that files get encrypted with the `.WNCRY` custom extension. Upon execution of the WannaCry malware, several immediate changes are observed on the system:
 - The desktop wallpaper is changed.
+	
 	![screenshot](images/wannacry_304.png)
 - Files are encrypted and appended with the custom extension `.WNCRY`.
+	
 	![screenshot](images/wannacry_305.png)
 - A `readme` file is dropped on the desktop.
+	
 	![screenshot](images/wannacry_306.png)
 - The ransomware interface, **Wana Decrypt0r 2.0**, is launched.
 
 
 #### Wana Decrypt0r 2.0 Overview
 The interface provides an explanation of what has occurred to the system, instructions on how to recover the encrypted files, payment details in Bitcoin, and contact information.
+
 ![screenshot](images/wannacry_307.png)
 Bottom left, there are three options:
 - **About Bitcoin**: Opens the Wikipedia page on Bitcoin (`https://en.wikipedia.org/wiki/Bitcoin`)
 - **How to buy bitcoins**: Opens a Google search for buying Bitcoin (`https://www.google.com/search?q=how+to+buy+bitcoin`).
 - **Contact Us**: Opens a form allowing the victim to send a message to the attacker
+	
 	![screenshot](images/wannacry_308.png)
 At the bottom there are two other options:
 **Bottom right options:**
 - **Check Payment**: Attempts to connect to a remote server to verify payment status. 
+	
 	![screenshot](images/wannacry_309.png)
 - **Decrypt**: Clicking `Decrypt` and then `Start` prompts the user to pay before decryption can begin.
+	
 	![screenshot](images/wannacry_311.png)
 **Top right corner**: Language selection menu for the ransomware message.
+	
 	![screenshot](images/wannacry_312.png)
 
 #### Process and Service Analysis
 Using Process Hacker, multiple suspicious services and processes are identified as being spawned by the malware:
+	
 	![screenshot](images/wannacry_313.png)
+	
 	![screenshot](images/wannacry_314.png)
+	
 	![screenshot](images/wannacry_315.png)
+	
 	![screenshot](images/wannacry_316.png)
+	
 	![screenshot](images/wannacry_317.png)
+	
 	![screenshot](images/wannacry_318.png)
 
 One particularly interesting process is `taksche.exe`, registered as a service with a randomly generated name `oqywognupbonhr845`. This file is located at `C:/ProgramData/oqywognupbonhr845`:
+	
 	![screenshot](images/wannacry_319.png)
+	
 	![screenshot](images/wannacry_320.png)
 This folder is hidden by default; visibility was enabled by configuring Windows Explorer to show hidden items, indicated by the translucent folder icon.
+	
 	![screenshot](images/wannacry_321.png)
 Inside this folder are all components previously recovered through static analysis, except for `@WanaDecryptor@.exe`, which is essentially a renamed copy of `u.wnry` with a custom icon.
+	
 	![screenshot](images/wannacry_322.png)
+	
 	![screenshot](images/wannacry_323.png)
+	
 	![screenshot](images/wannacry_324.png)
 The `mssecsvc2.0` process attempts to disguise itself as a legitimate Microsoft Defender service.
+	
 	![screenshot](images/wannacry_325.png)
 Two key processes, `taksche.exe` (described as "DiskPart") and `taskhsvc.exe`, are also associated with the ransomware's operation.
+	
 	![screenshot](images/wannacry_326.png)
 The main process masquerades as a legitimate service under the name **Microsoft Disk Defragmenter**, with Microsoft Corporation listed as the publisher.
+	
 	![screenshot](images/wannacry_327.png)
 
 #### EternalBlue lateral movement
 Network activity reveals that the main executable attempts to establish connections to random IP addresses over **port 445 (SMB)**. This is a preparatory step for launching the **EternalBlue exploit**, used for lateral movement.
+	
 	![screenshot](images/wannacry_328.png)
+	
 	![screenshot](images/wannacry_329.png)
 #### Persistence Mechanism
 A registry entry is created under "`HKEY_CURRENT_USER/SOFTWARE/Microsoft/Windows/CurrentVersion/Run`". This entry has the name `oqywognupbonhr845` and points to the path of the malware executable, ensuring that the ransomware runs on every system startup.
+	
 	![screenshot](images/wannacry_330.png)
 ### Execution workflow
 So the workflow of the program is the following:
+
 ![screenshot](images/wannacry_299.png)
 
 ### YARA rule
@@ -1630,17 +1959,22 @@ rule Wannacry_victorK
 	To check the YARA rules, we will use [`YARA Playground`](https://www.yaraplayground.com/), which is a web-based Yara debugger, to test YARA rules without requiring you to install anything.
 		- 24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe:
 			We can see that with the copy we analysed, obviously all the rules match, some of them multiple times, at the bottom.
+			
 			![screenshot](images/wannacry_331.png)
 		 - Other variants:
 			- 588cc3d662585f277904ee6afb5aa73143119ac663531ea4b6301eaccd9e4117.exe:
 				At this variant matches multiple resource_1831 strings, detecting it correctly.
+				
 				![screenshot](images/wannacry_332.png)
 			- dd9e91e348f5b6df686649d36863922e50208e2e6a2c8dde5fead47ac1778602.exe:
 				At this variant matches multiple eternal blue strings and the payload, the core strings, and the resource_1831 strings, detecting it correctly.
+				
 				![screenshot](images/wannacry_335.png)
+				
 				![screenshot](images/wannacry_333.png)
 			-e64a182607d00395ebd9658681b3bb8f8d5a3436587a2bb5f50355b65a647bd8.exe:
 				At this variant matches multiple resource_1831 strings, detecting it correctly.
+				
 				![screenshot](images/wannacry_334.png)
 
 ### MITRE ATT&CK Framework
