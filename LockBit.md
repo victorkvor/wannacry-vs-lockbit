@@ -1,62 +1,62 @@
 # Preparing the malware
 ---
 First, we need a sample of LockBit 3.0, which can be obtained from MalwareBazaar. The one that I will be reverse engineering has the hash `md5:33228a20a7e985f02e2ddd73cccde729`.
-![screenshot](lockbit_1.png)
+![screenshot](images/lockbit_1.png)
 The malware will be compressed with a password as an additional security measure. The password is in the same MalwareBazaar link from where we retrieved this sample; the password is "*infected*".
 # Ghidra
 ## Creating our Lockbit Project in Ghidra
 ---
 In `File > New Project...` or `CTRL+N`.
-![screenshot](lockbit_2.png)
+![screenshot](images/lockbit_2.png)
 
 Now we will need to choose between `Non-Shared Project` or `Shared Project`; in our case, we will be working on this project alone, so we will choose the `Non-Shared Project` and hit `Next >>`.
-![screenshot](lockbit_3.png)
+![screenshot](images/lockbit_3.png)
 
 Then we will assign a name to the project and click `Finish`.
-![screenshot](lockbit_4.png)
+![screenshot](images/lockbit_4.png)
 
 Now, we can drag the malware directly to the project *Lockbit-Ghidra*.
-![screenshot](lockbit_5.png)
+![screenshot](images/lockbit_5.png)
 
 For the Import setting we will leave them at default and we will click `OK`.
-![screenshot](lockbit_6.png)
+![screenshot](images/lockbit_6.png)
 
 After the import, it will generate the results, informing that the exports were successful.
-![screenshot](lockbit_7.png)
+![screenshot](images/lockbit_7.png)
 
 ## Functions and Control Flow
 ---
 ### Setting-up Analysis
 --- 
 Now, to start with the static analysis, we just need to click on the imported LockBit 3.0 sample in Ghidra.
-![screenshot](lockbit_8.png)
+![screenshot](images/lockbit_8.png)
 The first time, it will say that the executable has not been analysed, so we will start the analysis by clicking `Yes`.
 
 Now, for the analysis options, we need to additionally enable the `Decompiler Parameter ID` to make the code more readable and accurate by making Ghidra attempt to identify function parameters and their types during the decompilation phase of the binary code.
-![screenshot](lockbit_9.png)
+![screenshot](images/lockbit_9.png)
 
 Also, it will be important to enable the `WindowsPE x86 Propagate External Parameters` option to recognize external library function calls on the Windows platform, such as the Windows API functions that will be very important throughout the entire analysis.
-![screenshot](lockbit_10.png)
+![screenshot](images/lockbit_10.png)
 Now we will just click the `Analyze` button and start the decompilation to begin statically analysing the ransomware.
 ### Statical Analysis
 --- 
 #### General File Information
 To check general information about the file, we will use the program [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
-![screenshot](lockbit_11.png)
+![screenshot](images/lockbit_11.png)
 We will open the sample using the folder button.
-![screenshot](lockbit_12.png)
+![screenshot](images/lockbit_12.png)
 At the bottom, we can see in the scan section that it's a PE file for 32 bits, the packer is Microsoft Visual C++, and it indicates that the file has high entropy.
-![screenshot](lockbit_13.png)
+![screenshot](images/lockbit_13.png)
 If we go to the entropy section, we will see that the entropy is high and most of the executable is packed; 89% of the content is packed with an entropy of `7.19861`. It also has multiple packed sections.
-![screenshot](lockbit_14.png)
+![screenshot](images/lockbit_14.png)
 Besides that, we can see the file properties showing its size:
-![screenshot](lockbit_15.png)
+![screenshot](images/lockbit_15.png)
 To get the file hashes, we can use the following commands from PowerShell:
 > Get-FileHash -Path ".\0845a8c3be602a72e23a155b23ad554495bd558fa79e1bb849aa75f79d069194.exe" -Algorithm MD5
 > Get-FileHash -Path ".\0845a8c3be602a72e23a155b23ad554495bd558fa79e1bb849aa75f79d069194.exe" -Algorithm SHA1
 > Get-FileHash -Path ".\0845a8c3be602a72e23a155b23ad554495bd558fa79e1bb849aa75f79d069194.exe" -Algorithm SHA256
 > (Get-FileHash -Path ".\0845a8c3be602a72e23a155b23ad554495bd558fa79e1bb849aa75f79d069194.exe" -Algorithm SHA512).Hash
-![screenshot](lockbit_16.png)
+![screenshot](images/lockbit_16.png)
 
 | Campo            | Valor                                                                                                                                                                                                                                                                                                                         |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -71,25 +71,25 @@ To get the file hashes, we can use the following commands from PowerShell:
 
 #### Introduction
 First, if we check `Window > Defined Strings`, there is nothing remarkable; we see that this malware does a much better job at avoiding easy analysis by hiding all the loaded functions through obfuscating each string in the program.
-![screenshot](lockbit_17.png)
+![screenshot](images/lockbit_17.png)
 First, we will look at the function list, which is quite large, with 352 functions decompiled. The first function we will examine is the entry function, the first function called when the program is executed, which is the default entry code generated for Windows executables.
-![screenshot](lockbit_18.png)
+![screenshot](images/lockbit_18.png)
 #### Function entry
 At first, we can see in the entry function that it is completely different from what we are used to, with over 62 parameters being passed. There is also a warning that control encountered bad instruction data, indicating that the malware is attempting to make the decompilation difficult. We first observe four functions, but before analysing them, we will investigate the root of the error.
-![screenshot](lockbit_19.png)
+![screenshot](images/lockbit_19.png)
 Further down, at the end of the code, we can see multiple nonsensical operations that don't achieve anything, finishing the program without calling a `wWinMain`, as WannaCry does.
 
 The trash data is intentionally inserted; if you look at the side-by-side comparison, the first seventeen lines are correctly decompiled but do not achieve anything meaningful. After that, there is a considerable amount of memory filled with pure zeroes, which Ghidra's disassembler translates as `ADD [EAX], AL`. As the [`Stack Overflow`](https://es.stackoverflow.com/questions/460261/porque-sumar-tanto-los-registros-ax-eax-rax) forum states, if we look at the assembly, we see that the first instructions are `00 00`.
-![screenshot](lockbit_20.png)
+![screenshot](images/lockbit_20.png)
 It also returns an intended error by repeating the same set of instructions to trigger the error when disassembling.
-![screenshot](lockbit_21.png)
+![screenshot](images/lockbit_21.png)
 At the end of the decompiled entry function, it can be seen that Ghidra creates a function named `halt_baddata()`, partly because there is no jump or return called at the end of the entry function.
-![screenshot](lockbit_22.png)
+![screenshot](images/lockbit_22.png)
 Besides this intentional disassembly, we will check the first four functions.
 
 ##### Function FUN_00419000
 Just a trash function, with nothing inside it.
-![screenshot](lockbit_23.png)
+![screenshot](images/lockbit_23.png)
 
 ##### Function construct_api_addresses_antidbg (FUN_0040639c)
 In this function, we can see a large number of functions being invoked, especially `FUN_00405da0`.  
@@ -99,47 +99,47 @@ To clarify the functionality, we will analyze the following functions:
 - `FUN_0040b444`
 - `FUN_00417738`
 - `FUN_0040b470`
-![screenshot](lockbit_24.png)
+![screenshot](images/lockbit_24.png)
 	- api_hashing_func (FUN_00405aec):
-	![screenshot](lockbit_25.png)
+	![screenshot](images/lockbit_25.png)
 	First, we will change the function type to `*void` because, if we look at how it was previously called, we can see that it is a function of that type. The `code` type in Ghidra is a custom type used to represent a pointer to a function or executable code. 
-	![screenshot](lockbit_26.png)
+	![screenshot](images/lockbit_26.png)
 	Knowing this, we will redefine the function type to `*void`. However, we will need to check for critical sections in the assembly code, as some parts are not correctly decompiled: 
-	![screenshot](lockbit_27.png)
+	![screenshot](images/lockbit_27.png)
 	Initially, the function sets some global variables (`DAT_004253f8` and `DAT_004253fc`) to provisional values if they are empty. Then, with these provisional values, the function is invoked once again, assigning the returned value to the global variables.
-	![screenshot](lockbit_28.png)
+	![screenshot](images/lockbit_28.png)
 ___
 .
 	Because these values will be important later, we will retrieve which functions they are loading to avoid confusion with their use; we will use x32dbg for that.
 	Before doing anything, we will change the preferences of x32dbg to set the initial breakpoint at the entry function, because there is not any need for this analysis to analyse the system breakpoint. First go to `Options > Preferences`:
-	![screenshot](lockbit_29.png)
+	![screenshot](images/lockbit_29.png)
 	From there, uncheck `System Breakpoint*` and click `Save`, then restart x32dbg:
-	![screenshot](lockbit_30.png)
+	![screenshot](images/lockbit_30.png)
 	Now we will need to open the file by going to the menu, `File > Open`, and open the malware from there:
-	![screenshot](lockbit_31.png)
-	![screenshot](lockbit_32.png)
+	![screenshot](images/lockbit_31.png)
+	![screenshot](images/lockbit_32.png)
 	After opening it, we will go to the second function, the same as we were analysing.
-	![screenshot](lockbit_33.png)
+	![screenshot](images/lockbit_33.png)
 	When inside the function, we can put a breakpoint outside the function to see what it is attempting to dynamically load.
-	![screenshot](lockbit_34.png)We will enter the function because we also want to know what functions are the global variables `DAT_004253f8` and `DAT_004253fc` loading.
+	![screenshot](images/lockbit_34.png)We will enter the function because we also want to know what functions are the global variables `DAT_004253f8` and `DAT_004253fc` loading.
 	There we can see clearly both data being initialised, so we will put two breakpoints after the function finished to view the contents of `EAX`, what the function returned.
-	![screenshot](lockbit_35.png)
+	![screenshot](images/lockbit_35.png)
 	Now we will hit `F9` or the run button until it reaches that point.
 	First we can see that the second data, `DAT_004253fc`, loads first the function [`LdrGetProcedureAddress`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrGetProcedureAddress.html) that is not documented by Microsoft.
-	![screenshot](lockbit_36.png)
+	![screenshot](images/lockbit_36.png)
 	The same with the first data, `DAT_004253f8`, that if we hit F9 or the run button, it retrieves the function [`LdrLoadDll`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrLoadDll.html), also not documented by Microsoft.
-	![screenshot](lockbit_37.png)
+	![screenshot](images/lockbit_37.png)
 	Now we will continue until we retrieve the whole function with the hash XOR'd `0xF80FFA68`, the first time the API hashed function is called. If we hit run, it will end up at the end of the execution of the function we previously entered. There we can see it's importing the API [`RtlCreateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateheap).
-	![screenshot](lockbit_38.png)
+	![screenshot](images/lockbit_38.png)
 	Before continuing with static analysis, we will also check the retrieved function with the hash `XOR`'d `0x6e6047db`. First put a breakpoint after the function finishes and run the program until it reaches that point. With that we can see it retrieves the API [`RtlAllocateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap).
-	![screenshot](lockbit_39.png)
-	![screenshot](lockbit_40.png)
+	![screenshot](images/lockbit_39.png)
+	![screenshot](images/lockbit_40.png)
 ___
 .
 	After looking a bit more at the code, the most relevant point involves accessing the [`ProcessEnvironmentBlock`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm), specifically at offset `0x0C`. This value, as shown in the following table, corresponds to the `Ldr` field, which is a pointer to a structure of type `_PEB_LDR_DATA`. This structure contains information about the modules loaded into the process.
 	Everything described here is based on the **x86 architecture**, due to the nature of the analysed executable.
-	![screenshot](lockbit_41.png)
-	![screenshot](lockbit_42.png)
+	![screenshot](images/lockbit_41.png)
+	![screenshot](images/lockbit_42.png)
 ```assembly
 MOV EAX, FS:[0x30]        ; EAX = PEB
 MOV EAX, [EAX + 0xC]      ; EAX = PEB->Ldr
@@ -170,9 +170,9 @@ MOV EBX,dword ptr [ECX + 0x18]
 |`PVOID SsHandle`|0x08–0x0B|
 |`LIST_ENTRY InLoadOrderModuleList`|**0x0C–0x13**|
 	Also at the end of the loop, it can be seen that it iterates through every module until it reaches the module head once again, if it doesn't satisfy a condition before.
-	![screenshot](lockbit_43.png)
+	![screenshot](images/lockbit_43.png)
 	The first thing it does on every loop at each [`LDR_DATA_TABLE_ENTRY`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/ntldr/ldr_data_table_entry.htm) is to access to the `DllBase` at each module, that is, at the 0x18 offset.
-	![screenshot](lockbit_44.png)
+	![screenshot](images/lockbit_44.png)
 	
 | Field                                                      | Offset           |
 | ---------------------------------------------------------- | ---------------- |
@@ -217,7 +217,7 @@ CALL       FUN_004011c4         ; Function called with BaseDllName.Buffer and 0x
 .
 		- custom_hashing_function (FUN_004011c4):
 		At this function it seems that it attempts to transform each character of the DLL name (`param_3`), which is a `WCHAR`, we will not change the function signature, as reading assembly in this case is better. In order to do some weird operations, it could be that it is actually trying to hash this name.
-		![screenshot](lockbit_45.png)
+		![screenshot](images/lockbit_45.png)
 		Looking at the assembly code at the decompiled if, we see some interesting hexadecimal values, and also that we retrieve each character of the DLL name, looping until we get through the entire `WCHAR`. The first interesting thing is that as we are talking about a `WCHAR`, which is the name of the DLL, the `0x41` in Unicode is the `A`, character and the `0x5a` is `Z`. Checking with `JC` if it's smaller than `A`, skipping the `OR` operation, and with `JA`, it checks if it's above `Z`, also skipping the `OR`. So it seems to do the `OR` operation if the character is between `A` and `Z` uppercase, `A` <= char <= `Z`, and the `OR` operation is what makes the character lowercase because a lowercase is `0x61`, which if we take the uppercase value of `A`, `0x41`, and do an `OR` with `0x20`, it is converted to its lowercase version, happening the same to each char. So it ignores each non-uppercase character, and the non-ignored uppercase character is transformed to its lowercase version. This can be checked at a Unicode table like [`this one`]([https://byte-tools.com/en/ascii/](https://byte-tools.com/en/ascii/)).
 ```assembly
     LAB_004011d2:                                   
@@ -249,7 +249,7 @@ XOR   param_1,param_1             ; param_1 = 0
 ```
 .  
 		We can see that it makes use of the `ROR` operation that shifts to the right the bits, making shifted bits that are rotated go to the other end (left).
-		![screenshot](lockbit_46.png)
+		![screenshot](images/lockbit_46.png)
 		So it does 13 right bits rotation with `ROR`, and after that it adds the char value to `param_2`, making it the irreversible hash of the DLL name until the whole `WCHAR` is processed. Also keep in mind that with the x86 calling conventions (`cdecl` / `stdcall` / `fastcall`), the return value is the one placed at `EAX`, source [`Microsoft Documentation`]([https://learn.microsoft.com/en-us/cpp/cpp/argument-passing-and-naming-conventions?view=msvc-170](https://learn.microsoft.com/en-us/cpp/cpp/argument-passing-and-naming-conventions?view=msvc-170)).
 ```assembly
     LAB_004011e6:
@@ -265,7 +265,7 @@ MOV   EAX,param_2                  ; return value
 ```
 .
 		To make it clear for future references, we will rename the function to `custom_hashing_function`:
-		![screenshot](lockbit_47.png)
+		![screenshot](images/lockbit_47.png)
 	After obtaining the hashing function, it continues by saving the hash to `MM1` and obtaining the absolute address to the `Export Directory VA` by adding the `DllBase` pointer, because the `Export Directory RVA` is relative to the module. With the `Export Directory VA`, looking at the offset `0x18`, it points to `NumberOfNames`. Based on the [`documentation`]([https://www.sunshine2k.de/reversing/tuts/tut_pe.htm](https://www.sunshine2k.de/reversing/tuts/tut_pe.htm)), checking if it's not empty and skipping the module if it was empty by jumping to the next module, it gets the absolute address to `AddressOfNames` and `AddressOfNameOrdinals`, then it passes to the function the previously calculated hash and the next value of `AddressOfNames`, which will be iterated one by one in the loop. Then the function `FUN_00401180` is invoked, which we will analyse.
 		- `AddressOfNames`: Array that contains API name’s pointers. [`Source`](https://sachiel-archangel.medium.com/how-to-analyze-api-address-acquisition-process-696750f50039)
 		- `AddressOfNameOrdinals`: Array containing the ordinal numbers to get the address position of the API function from the index of the API name. [`Source`](https://sachiel-archangel.medium.com/how-to-analyze-api-address-acquisition-process-696750f50039)
@@ -292,7 +292,7 @@ CALL       FUN_00401180
 .
 		- custom_hashing_function_2_noup (FUN_00401180):
 		At first sight, it looks too similar to the previous hashing function we had, but it now takes as parameters the exported name (API) and also the previously calculated hash.
-		![screenshot](lockbit_48.png)
+		![screenshot](images/lockbit_48.png)
 		If we look closer at the assembly, the functionality is the same as `custom_hashing_function` but without transforming uppercase letters to lowercase. Also keep in mind that in the x86 calling conventions (`cdecl` / `stdcall` / `fastcall`), the return value is the one placed in `EAX`, source [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/cpp/argument-passing-and-naming-conventions?view=msvc-170).
 ```assembly
 MOV   param_2,dword ptr [EBP + param_4]  ; param_2 = calculated_hash
@@ -311,7 +311,7 @@ MOV   EAX,param_2              ; return value
 ```
 .
 		We will rename the function to `custom_hashing_function_2_noup`:
-		![screenshot](lockbit_49.png)
+		![screenshot](images/lockbit_49.png)
 	So after calculating another hash using the previous hash and another function similar to `custom_hashing_function()`, with the exported name (API), we now compare the newly calculated hash value to `param_1`, the unusual passed parameter, which must be another hash. Until now, the program is attempting to secretly get access to modules, making it quite hard to know what it's doing by not using a traditional method and never directly referencing which modules it is attempting to load.
 ```assembly
     LAB_00405baa:
@@ -383,7 +383,7 @@ MOV     EAX, EBX            ; return EAX = EBX (0 or 1)
 ```
 .
 			- func_char_verifier (FUN_00405774):
-			![screenshot](lockbit_50.png)
+			![screenshot](images/lockbit_50.png)
 			It checks in the lookup table `DAT_00405790`, which is a large table of 512 bytes, by multiplying the value of the character by 2 and using the result as the index to obtain a value from the table. It then performs an AND operation with the mask `0x157`; if the result is zero, the character is considered invalid, otherwise it is valid.
 ```assembly
 MOVZX ECX, byte ptr [EBP+param_1]  ; Load character (8-bit → 32-bit, zero-extended)
@@ -425,9 +425,9 @@ AND EAX, 0x157                     ; Check if any of masked bits (0x157) are set
 			.
 			With all these checks, the function seems to exclude anything that couldn't be a normal string, which we were passing to the function implementation, which is strange, as it would always be invalid. But if we look at [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-address-table), it could be a literal string pointing to a forwarded exported function, not the actual implementation. This is not valid for loading a library dynamically in a hidden way, as LockBit attempts.
 			We will rename the function to `func_char_verifier`:
-			![screenshot](lockbit_51.png)
+			![screenshot](images/lockbit_51.png)
 		So after checking the previous function and corroborating it with [`Microsoft documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-address-table), it checks if it's a forwarded export or the actual function implementation. We will rename the function to `func_diff_fwexport:
-		![screenshot](lockbit_52.png)
+		![screenshot](images/lockbit_52.png)
 	The next steps now are checking if the result of the function was zero or different. 
 	First, in the case it was zero, it follows the next logic. Checks if it was not a forwarded exported function with `func_diff_fwexport`, and then it returns the code implementation of the [`API`]([https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-libraries](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-libraries)) to make use of it, as we previously retrieved it from `AddressOfFunctions[ordinal_index]` and copied it to `MM0`.
 ```assembly
@@ -477,7 +477,7 @@ MOVD       EAX,MM0            ; return the exported function implementation (API
 .
 		- func_get_api_addr_from_fwexport (FUN_00405a84):
 		Looking at the decompiled code seems misleading: the only relevant thing at first sight is that it checks if the global variables from the main function we are analysing right now are initialised, which we did at the start of the code, so this function can only be called after the previous function was executed.
-		![screenshot](lockbit_53.png)
+		![screenshot](images/lockbit_53.png)
 		If we look thoroughly at the code, we can see it attempts to operate with the forwarded exported function string that looks like `KERNEL32.SomeAPI`. From there, it searches for the point at the string that separates the library from the API. With that it retrieves the DLL/library that invokes it, copying it to a local buffer, also checking if the global variables are not empty with the functions [`LdrLoadDll`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrLoadDll.html)(`DAT_004253f8`) and [`LdrGetProcedureAddress`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrGetProcedureAddress.html)(`DAT_004253fc`) and then it passes the DLL name to the function `FUN_00405a20`.
 ```assembly
 ...
@@ -514,7 +514,7 @@ CALL    FUN_00405a20
 			IN `PUNICODE_STRING` `_ModuleFileName_`,  --> `local_10` has to be `UNICODE_STRING`
 			OUT `PHANDLE`                  `_ModuleHandle_` --> `local_8` will be the handle of the DLL
 			If we look at this and look at the function once again, then we see that it checks if `param_2` is zero; in case it's zero, it saves each character converted to `ushort` (2 bytes), Unicode, to `local_218`; otherwise, it will mean `param_1` is actually Unicode (`WCHAR`).
-			![screenshot](lockbit_54.png)
+			![screenshot](images/lockbit_54.png)
 			- create_unicode_string_struct (FUN_004056f0):
 				This function creates in `param_1` the structure [`UNICODE_STRING`](https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string) with the DLL unicode string (`WCHAR`) needed to get the `DllHandle` with [`LdrLoadDll`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrLoadDll.html).
 ```assembly
@@ -539,9 +539,9 @@ MOV     [EDX],CX               ; UNICODE_STRING.Length = byte length - 2
 ```
 .
 				Based on the functionality, we will rename the function to `create_unicode_string_struct()`:
-				![screenshot](lockbit_55.png)
+				![screenshot](images/lockbit_55.png)
 			So the function gets a handle to the passed DLL string; because of that, we will rename the function to `get_dll_handle_w_string()`:
-			![screenshot](lockbit_56.png)
+			![screenshot](images/lockbit_56.png)
 		So after getting the handle of the DLL, now we retrieve the API function of the DLL after that point, extracting that substring. Then we enter the function `FUN_004059d4` with the DLL handle and the API function of the DLL.
 ```assembly
 ...
@@ -574,7 +574,7 @@ RET     0x4
 ```
 .
 			- get_api_function_from_dll (FUN_004059d4)
-			 ![screenshot](lockbit_57.png)
+			 ![screenshot](images/lockbit_57.png)
 			There we can see at the decompiled function that checks if `param_2` is two bytes or less, `param_2 <= 0xffff`, because an ordinal is a `WORD` (2 bytes). If it's two bytes or less and treats `param_2` as an ordinal, then it invokes the `DAT_004253fc`, [`LdrGetProcedureAddress`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrGetProcedureAddress.html), with the next params, where the gimmick is that `FunctionName` and `ordinal` can be zero, but one of them has to be declared. 
 			  IN `HMODULE`            `_ModuleHandle_`,                      --> `param_1`
 			  IN `PANSI_STRING`     `_FunctionName_` OPTIONAL,    --> 0
@@ -589,7 +589,7 @@ RET     0x4
               OUT `PVOID`               `_*FunctionAddress_` );                --> `local_8`
             Then it returns to `local_8` the FunctionAddress to the API, which is returned in the function.
             With the functionality being clear, then we will rename it to `get_api_function_from_dll()`:
-            ![screenshot](lockbit_58.png)
+            ![screenshot](images/lockbit_58.png)
 	            - create_ansi_string_struct (FUN_00405734):
 	            As we can see reading the assembly code, it creates the [`ANSI_STRING`](https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-string) structure.
 ```assembly
@@ -612,7 +612,7 @@ MOV     word ptr [EDX],CX       ; ANSI_STRING.Length = byte length - 1
 ```
 .
 				As we did before, based on the functionality, the function will be renamed to `create_ansi_string_struct()`.
-				![screenshot](lockbit_59.png)
+				![screenshot](images/lockbit_59.png)
 		So, with that we retrieve the address of the API function from the DLL, and return it.
 ```assembly
 ...
@@ -624,7 +624,7 @@ RET     0x4
 ```
 .
 		Based on the functionality, it then retrieves the address of the API function from the forwarded exported function in order to obtain a reference to the code. The function will be renamed to `func_get_api_addr_from_fwexport()`.
-		![screenshot](lockbit_60.png)
+		![screenshot](images/lockbit_60.png)
 	Now that we understand what the last function does, the overall routine attempts to dynamically resolve API function addresses based on a target hash. It does so by iterating through each loaded DLL in the process and applying a **custom DLL hashing function** to compute a module-specific hash. Then, for each exported function within that DLL, it applies a second **custom API name hashing function**, combines both hashes, and compares the result with the target hash. When a match is found, the function retrieves the address of the corresponding API. If the export is **forwarded** (i.e., it points to another DLL), the code calls a helper routine to manually resolve the final address from the forwarded module.
 ```assembly
     LAB_00405baa:
@@ -644,13 +644,13 @@ MOVD       EAX,MM0            ; return the exported function implementation (API
 ```
 .
 	With that being clear, we will rename the function to `api_hashing_func()`.
-	![screenshot](lockbit_61.png)
+	![screenshot](images/lockbit_61.png)
 	Also, we will rename `DAT_004253fc` to `getproc_func`, because it has the function [`LdrGetProcedureAddress`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrGetProcedureAddress.html), and `DAT_004253f8` to `loaddll_func`, because it has the function [`LdrLoadDll`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FExecutable%20Images%2FLdrLoadDll.html).
-	![screenshot](lockbit_62.png)
-	![screenshot](lockbit_63.png)
+	![screenshot](images/lockbit_62.png)
+	![screenshot](images/lockbit_63.png)
 
 After being back at `FUN_0040639c` and renaming variables and setting comments to have a remainder of the imported functions, we can see that the function `FUN_00405da0` is being invoked multiple times, so we will analyse it after seeing how [`RtlCreateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateheap) is used.
-![screenshot](lockbit_64.png)
+![screenshot](images/lockbit_64.png)
 First, before diving into it, the [`RtlCreateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateheap) is invoked, returning a handle to the created heap. The first parameter is the flags, which is undocumented, but if we look at the implementation of [`rtltypes.h`](https://doxygen.reactos.org/d5/df7/ndk_2rtltypes_8h_source.html#l00125) from ReactOS, which is practically the same as it's compatible with Windows versions because Microsoft functions are poorly documented, starting from line 125 there we can see clearly all the heap flags.
 ```c
 //
@@ -804,11 +804,11 @@ In ReactOS, something similar is done with the function [`RtlDebugCreateHeap`](h
 ---
 To confirm this, we will go to x32dbg and manually retrieve the [`RtlCreateHeap`](https://doxygen.reactos.org/d8/dc5/sdk_2lib_2rtl_2heap_8c_source.html#l01494) handle.  
 First, we will go to the part where the [`RtlCreateHeap`](https://doxygen.reactos.org/d8/dc5/sdk_2lib_2rtl_2heap_8c_source.html#l01494) returns the handle, as we did before, and put a breakpoint on the next instruction, running it until we reach that breakpoint:
-![screenshot](lockbit_65.png)
+![screenshot](images/lockbit_65.png)
 After that, we will right-click the register `EAX` and go to the option `Follow in Dump > EAX: {address}`:
-![screenshot](lockbit_66.png)
+![screenshot](images/lockbit_66.png)
 Now that we see the `EAX` register, we can see the address of `EAX` is at `0x02E20000`, and the offset that the program is looking at for the flags is `0x2E20040` (`0x02E20000 + 0x40`), highlighted in grey. We can clearly see that the flag changes to `0x40041062`, instead of `0x00041002`, with the difference that it now has the following flags active: [`HEAP_VALIDATE_PARAMETERS_ENABLED`](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/enable-heap-parameter-checking) (`0x40000000`), [HEAP_FREE_CHECKING_ENABLED](https://anti-debug.checkpoint.com/techniques/debug-flags.html#manual-checks-heap-protection) (`0x00000040`), and [`HEAP_TAIL_CHECKING_ENABLED`](https://anti-debug.checkpoint.com/techniques/debug-flags.html#manual-checks-heap-protection) (`0x00000020`).
-![screenshot](lockbit_67.png)
+![screenshot](images/lockbit_67.png)
 
 ---
 The flag, when being debugged, is then `0x40041062`, provoking that from the 28-bit to the 30, the flag [`HEAP_VALIDATE_PARAMETERS_ENABLED`](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/enable-heap-parameter-checking) is isolated, being 4, the check to do.
@@ -838,7 +838,7 @@ The process can be seen as:
 - load_apis_func (FUN_00405da0)
 	Now at the function `FUN_00405da0` we will analyse the functionality before analysing what each invoked function achieves.  
 	At first sight, it does weird things that have hidden purposes. First we will look at the first invoked function, `FUN_00405c24`.
-	![screenshot](lockbit_68.png)
+	![screenshot](images/lockbit_68.png)
 	Before invoking the function `FUN_00405c24`, it does a curious thing: it takes the first 4 bytes of `param_2` with `LODSD`, and with those 4 bytes, it performs an `XOR` with the mask `0x10035fff` and passes it to the function `FUN_00405c24`. Ghidra decompilation doesn't take the value of `param_2` into account. Later we will analyse each function invocation, being more specific about what each one achieves.
 ```assembly
 MOV     ESI,dword ptr [EBP + param_2]  ; ESI = param_2
@@ -850,7 +850,7 @@ CALL    FUN_00405c24
 .
 	- sys32_dll_or_drv_hash_function (FUN_00405c24)
 		Looking at the decompiled code, it first retrieves other functions with the `api_hashing_func()` using some specific hashes, obtained by performing an `XOR` operation.
-		![screenshot](lockbit_69.png)
+		![screenshot](images/lockbit_69.png)
 		First, we will obtain each data retrieval function to better understand their use.
 
 ---
@@ -858,27 +858,27 @@ CALL    FUN_00405c24
 		To obtain it we will need to debug it, but if you may remember, the program uses an anti-debugging technique. Therefore, before doing anything, we will bypass it by copying the program, modifying it to avoid altering the heap handle, and then debugging normally.
 		We will copy the original executable, decompile it, go directly to the `ROL` operation, and replace it with `NOP` instructions using Ghidra.
 		After decompressing it to another folder and renaming the executable to identify it more easily, we will decompile it again with Ghidra as before.
-		![screenshot](lockbit_70.png)
+		![screenshot](images/lockbit_70.png)
 		First we import it:
-		![screenshot](lockbit_71.png)
+		![screenshot](images/lockbit_71.png)
 		Analyse it as always: 
-		![screenshot](lockbit_72.png)
+		![screenshot](images/lockbit_72.png)
 		We go to the point where the handle was being destroyed by the `ROL` instruction. Then, we right-click the instruction and select the `Patch Instruction` option.
-		![screenshot](lockbit_73.png)
+		![screenshot](images/lockbit_73.png)
 		That will allow us to rewrite the instruction, as it will be highlighted, indicating it can be modified. Delete the existing instruction and replace it with `NOP` instructions so that nothing happens if it's being debugged.
-		![screenshot](lockbit_74.png)
-		![screenshot](lockbit_75.png)
-		![screenshot](lockbit_76.png)
+		![screenshot](images/lockbit_74.png)
+		![screenshot](images/lockbit_75.png)
+		![screenshot](images/lockbit_76.png)
 		Also, save the program using the `File` option to be able to continue modifying it later:
-		![screenshot](lockbit_77.png)
+		![screenshot](images/lockbit_77.png)
 		But that's not all, we need to export the actual patched program:
-		![screenshot](lockbit_78.png)
+		![screenshot](images/lockbit_78.png)
 		And select as the output the original file:
-		![screenshot](lockbit_79.png)
-		![screenshot](lockbit_80.png)
+		![screenshot](images/lockbit_79.png)
+		![screenshot](images/lockbit_80.png)
 		Now, when we debug this new program, it will not corrupt the handle, as we got rid of the anti-debugging technique.
 		We can verify in x32dbg that now it does nothing (`NOP`) when it detects it's being debugged:
-		![screenshot](lockbit_81.png)
+		![screenshot](images/lockbit_81.png)
 
 ---
 .
@@ -895,11 +895,11 @@ MOV     [DAT_00425400],EAX             ; DAT_00425400 = EAX = loaded function
 ```
 .
 			Debugging it with x32dbg, putting a breakpoint at the `MOV` instruction to see which function it has loaded:
-			![screenshot](lockbit_82.png)
+			![screenshot](images/lockbit_82.png)
 			If we run the program, we will see that it loads the function [`FindFirstFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilew):
-			![screenshot](lockbit_83.png)
+			![screenshot](images/lockbit_83.png)
 			To make the data visualization easier, we will rename the global variable to `findfirstfilew_func`:
-			![screenshot](lockbit_84.png)
+			![screenshot](images/lockbit_84.png)
 .
 		* findnextfilew_func (DAT_00425404):
 ```assembly
@@ -914,11 +914,11 @@ MOV     [DAT_00425404],EAX             ; DAT_00425404 = EAX = loaded function
 ```
 .
 			Debugging it with x32dbg, putting a breakpoint at the `MOV` instruction to see which function it has loaded:
-			![screenshot](lockbit_85.png)
+			![screenshot](images/lockbit_85.png)
 			If we run the program, we will see that it loads the function [`FindNextFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findnextfilew):
-			![screenshot](lockbit_86.png)
+			![screenshot](images/lockbit_86.png)
 			To make the data visualisation easier, we will rename the global variable to `findnextfilew_func`:
-			![screenshot](lockbit_87.png)
+			![screenshot](images/lockbit_87.png)
 	.
 		* findclose_func (DAT_00425408):
 ```assembly
@@ -933,11 +933,11 @@ MOV     [DAT_00425408],EAX             ; DAT_00425408 = EAX = loaded function
 ```
 .
 			Debugging it with x32dbg, putting a breakpoint at the `MOV` instruction to see which function it has loaded:
-			![screenshot](lockbit_88.png)
+			![screenshot](images/lockbit_88.png)
 			If we run the program, we will see that it loads the function [`FindClose`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findclose):
-			![screenshot](lockbit_89.png)
+			![screenshot](images/lockbit_89.png)
 			To make the data visualisation easier, we will rename the global variable to `findclose_func`:
-			![screenshot](lockbit_90.png)
+			![screenshot](images/lockbit_90.png)
 .
 		With the functions, first it will use [`FindFirstFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilew) search for a specific folder, subfolder, or file; it can receive wildcard characters. [`FindNextFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findnextfilew) to go to the next matching file or folder, and then when the program doesn't want to continue searching files, it will close the file search handle with [`FindClose`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findclose).
 .
@@ -975,12 +975,12 @@ JMP     LAB_0040166e          ; repeat loop
 ```
 .
 			When there are no more `WCHAR` to store at the destination buffer, we will do another logic flow where we will append multiple characters. It also does multiple `XOR`, but if we look at the decompiled code and convert each byte to ASCII, we can see that it appends the string `\System32`.
-			![screenshot](lockbit_91.png)
+			![screenshot](images/lockbit_91.png)
 			To know the contents of [`KUSER_SHARED_DATA`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/ntexapi_x/kuser_shared_data/index.htm), because we cannot see it statically as it's loaded when the program is running, we will debug it with x32dbg by putting a breakpoint after the function is executed.  
 			There we can clearly see that it constructs the string `C:\Windows\System32`, so it obtains a correct route to our System32 folder, confirming the documentation of Geoff Chappell.
-			![screenshot](lockbit_92.png)
+			![screenshot](images/lockbit_92.png)
 			Because the function retrieves the System32 folder, we will rename the function `retrieve_system32_path_func`.
-			![screenshot](lockbit_93.png)
+			![screenshot](images/lockbit_93.png)
 		After retrieving the System32 path, unique to the computer, it then advances the pointer of the local buffer that holds the System32 path until it finds a null character, in order to append data that is encoded but will be decoded by the function `FUN_00401240`:
 ```assembly
 CALL    retrieve_system32_path_func             ; retrieve path to system32
@@ -1017,11 +1017,11 @@ JNZ LAB_0040124c                 ; repeat until all blocks have been processed
 ```
 .
 			With that being clear, we will rename the function to `decode_n_blocks_w_mask_func`:
-			![screenshot](lockbit_94.png)
+			![screenshot](images/lockbit_94.png)
 		To see the changes of the function `decode_n_blocks_w_mask_func`, we will use x32dbg. There, we can see it appends `\\*.dll`.
-		![screenshot](lockbit_95.png)
+		![screenshot](images/lockbit_95.png)
 		If we look at the EBX register, we can see the whole constructed string `C:\Windows\System32\*.dll`.
-		![screenshot](lockbit_96.png)
+		![screenshot](images/lockbit_96.png)
 		After clearing up the previous function, we will continue analysing. 
 		If we look at the assembly code, it is quite hard to follow, but what it does is set a buffer for a [`_WIN32_FIND_DATAW`](https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-win32_find_dataw), which will be the returned structure by the [`FindFirstFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfilew) function. This function will be invoked with the path containing wildcards `{Windows_path}\System32\*.dll`, searching for all the DLLs in System32 until it finds one whose DLL name, when hashed with the custom hashing function, matches the one passed as a parameter. The name is retrieved from the structure (at address `0xFFFFFDA8`) with an offset of `0x2C` that points to the `WCHAR cFileName[MAX_PATH]`, the DLL name, as we can see looking at the [`_WIN32_FIND_DATAW`](https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-win32_find_dataw) structure:
 
@@ -1120,7 +1120,7 @@ RET     0x4                               ; return
 ```
 .
 		Being clear on this, we will rename the function to `sys32_dll_or_drv_hash_function`:
-		![screenshot](lockbit_97.png)
+		![screenshot](images/lockbit_97.png)
 	After understanding the functionality of `sys32_dll_or_drv_hash_function`, we will continue. This function attempts to obtain a handle to a DLL (`.dll` or `.drv`) with a passed hash, previously modified with an `XOR`. If the handle is not valid, it finishes the function returning zero (`EAX=0`); otherwise, it advances the `param1` pointer by 4 bytes and then enters a loop where, at each iteration, it retrieves the next 4 pointers of `param_2` until it finds `0xcccccccc`, finishing its execution.
 ```assembly
 CALL    sys32_dll_or_drv_hash_function   ; EAX = handle of dll or drv
@@ -1420,11 +1420,11 @@ RET                              ; Return EDX:EAX as pseudo-random
 ```
 .
 			Based on this, the function will be renamed to `generate_seed_func`:
-			![screenshot](lockbit_98.png)
+			![screenshot](images/lockbit_98.png)
 		Being the function clear, we will rename it to `generate_randnumber_lcg_func`:
-		![screenshot](lockbit_99.png)
+		![screenshot](images/lockbit_99.png)
 	So, we will rename the function to `load_apis_func`:
-	![screenshot](lockbit_100.png)
+	![screenshot](images/lockbit_100.png)
 Now, the next step is to retrieve all the imported APIs one by one with each call to see which ones are being retrieved, putting a breakpoint when retrieving the API with the `api_hashing_func` function:
 
 ---
@@ -1441,655 +1441,655 @@ JZ         LAB_00405df8              ; substitute this for NOP to not skip if de
 STOSD      ES:EDI                    
 ```
 As we did before, substitute this for `NOP`:
-![screenshot](lockbit_101.png)
-![screenshot](lockbit_102.png)
-![screenshot](lockbit_103.png)
+![screenshot](images/lockbit_101.png)
+![screenshot](images/lockbit_102.png)
+![screenshot](images/lockbit_103.png)
 And export it to the original file format:
-![screenshot](lockbit_104.png)
-![screenshot](lockbit_105.png)
+![screenshot](images/lockbit_104.png)
+![screenshot](images/lockbit_105.png)
 
 ---
 
 - address `0x42540c` ([`ntdll.dll`]([`NTDLL`](https://www.geoffchappell.com/studies/windows/win32/ntdll/index.htm?tx=21,24))):
-![screenshot](lockbit_106.png)
+![screenshot](images/lockbit_106.png)
 First 4 bytes of param_2 are the hash of [`ntdll.dll`](https://www.geoffchappell.com/studies/windows/win32/ntdll/index.htm?tx=21,24) DLL.
-![screenshot](lockbit_107.png)
+![screenshot](images/lockbit_107.png)
 	- api (`0x425410`) ~ [`RtlCreateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateheap)
-	![screenshot](lockbit_108.png)
+	![screenshot](images/lockbit_108.png)
 	- api (`0x425414`) ~ [`RtlDestroyHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtldestroyheap)
-	![screenshot](lockbit_109.png)
+	![screenshot](images/lockbit_109.png)
 	- api (`0x425418`) ~ [`RtlAllocateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap)
-	![screenshot](lockbit_110.png)
+	![screenshot](images/lockbit_110.png)
 	- api (`0x42541C`) ~ [`RtlReallocateHeap`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FMemory%20Management%2FHeap%20Memory%2FRtlReAllocateHeap.html)
-	![screenshot](lockbit_111.png)
+	![screenshot](images/lockbit_111.png)
 	- api (`0x425420`) ~ [`RtlFreeHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlfreeheap)
-	![screenshot](lockbit_112.png)
+	![screenshot](images/lockbit_112.png)
 	- api (`0x425424`) ~ [`memcpy`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memcpy-wmemcpy?view=msvc-170)
-	![screenshot](lockbit_113.png)
+	![screenshot](images/lockbit_113.png)
 	- api (`0x425428`) ~ [`memset`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memset-wmemset?view=msvc-170)
-	![screenshot](lockbit_114.png)
+	![screenshot](images/lockbit_114.png)
 	- api (`0x42542C`) ~ [`memmove`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memmove-wmemmove?view=msvc-170)
-	![screenshot](lockbit_115.png)
+	![screenshot](images/lockbit_115.png)
 	- api (`0x425430`) ~ [`strlen`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strlen-wcslen-mbslen-mbslen-l-mbstrlen-mbstrlen-l?view=msvc-170)
-	![screenshot](lockbit_116.png)
+	![screenshot](images/lockbit_116.png)
 	- api (`0x425434`) ~ [`strcpy`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy?view=msvc-170)
-	![screenshot](lockbit_117.png)
+	![screenshot](images/lockbit_117.png)
 	- api (`0x425438`) ~ [`strstr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strstr-wcsstr-mbsstr-mbsstr-l?view=msvc-170)
-	![screenshot](lockbit_118.png)
+	![screenshot](images/lockbit_118.png)
 	- api (`0x42543C`) ~ [`wcslen`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strlen-wcslen-mbslen-mbslen-l-mbstrlen-mbstrlen-l?view=msvc-170)
-	![screenshot](lockbit_119.png)
+	![screenshot](images/lockbit_119.png)
 	- api (`0x425440`) ~ [`wcscat`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcat-wcscat-mbscat?view=msvc-170)
-	![screenshot](lockbit_120.png)
+	![screenshot](images/lockbit_120.png)
 	- api (`0x425444`) ~ [`wcscpy`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy?view=msvc-170)
-	![screenshot](lockbit_121.png)
+	![screenshot](images/lockbit_121.png)
 	- api (`0x425448`) ~ [`wcsstr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strstr-wcsstr-mbsstr-mbsstr-l?view=msvc-170)
-	![screenshot](lockbit_122.png)
+	![screenshot](images/lockbit_122.png)
 	- api (`0x42544C`) ~ [`wcschr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strchr-wcschr-mbschr-mbschr-l?view=msvc-170)
-	![screenshot](lockbit_123.png)
+	![screenshot](images/lockbit_123.png)
 	- api (`0x425450`) ~ [`wcsrchr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strrchr-wcsrchr-mbsrchr-mbsrchr-l?view=msvc-170)
-	![screenshot](lockbit_124.png)
+	![screenshot](images/lockbit_124.png)
 	- api (`0x425454`) ~ [`\_wcsicmp`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/stricmp-wcsicmp-mbsicmp-stricmp-l-wcsicmp-l-mbsicmp-l?view=msvc-170)
-	![screenshot](lockbit_125.png)
+	![screenshot](images/lockbit_125.png)
 	- api (`0x425458`) ~ [`\_wcslwr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strlwr-wcslwr-mbslwr-strlwr-l-wcslwr-l-mbslwr-l?view=msvc-170)
-	![screenshot](lockbit_126.png)
+	![screenshot](images/lockbit_126.png)
 	- api (`0x42545C`) ~ [`\_wcsupr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strupr-strupr-l-mbsupr-mbsupr-l-wcsupr-l-wcsupr?view=msvc-170)
-	![screenshot](lockbit_127.png)
+	![screenshot](images/lockbit_127.png)
 	- api (`0x425460`) ~ [`\_strupr`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strupr-strupr-l-mbsupr-mbsupr-l-wcsupr-l-wcsupr?view=msvc-170)
-	![screenshot](lockbit_128.png)
+	![screenshot](images/lockbit_128.png)
 	- api (`0x425464`) ~ [`\_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170)
-	![screenshot](lockbit_129.png)
+	![screenshot](images/lockbit_129.png)
 	- api (`0x425468`) ~ [`sprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170)
-	![screenshot](lockbit_130.png)
+	![screenshot](images/lockbit_130.png)
 	- api (`0x42546C`) ~ [`\_ui64toa`](https://learn.microsoft.com/en-us/previous-versions/yakksftt(v=vs.140))
-	![screenshot](lockbit_131.png)
+	![screenshot](images/lockbit_131.png)
 	- api (`0x425470`) ~ [`\_alldiv`](https://learn.microsoft.com/en-us/windows/win32/devnotes/-win32-alldiv)
-	![screenshot](lockbit_132.png)
+	![screenshot](images/lockbit_132.png)
 	- api (`0x425474`) ~ [`NtOpenProcess`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-ntopenprocess)
-	![screenshot](lockbit_133.png)
+	![screenshot](images/lockbit_133.png)
 	- api (`0x425478`) ~ [`ZwDuplicateToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicatetoken)
-	![screenshot](lockbit_134.png)
+	![screenshot](images/lockbit_134.png)
 	- api (`0x42547C`) ~ [`ZwDuplicateObject`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicateobject)
-	![screenshot](lockbit_135.png)
+	![screenshot](images/lockbit_135.png)
 	- api (`0x425480`) ~ [`ZwSetThreadExecutionState`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwSetThreadExecutionState.html)
-	![screenshot](lockbit_136.png)
+	![screenshot](images/lockbit_136.png)
 	- api (`0x425484`) ~ [`NtSetInformationProcess`](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FProcess%2FNtSetInformationProcess.html)
-	![screenshot](lockbit_137.png)
+	![screenshot](images/lockbit_137.png)
 	- api (`0x425488`) ~ [`NtQuerySystemInformation`](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation)
-	![screenshot](lockbit_138.png)
+	![screenshot](images/lockbit_138.png)
 	- api (`0x42548C`) ~ [`ZWQueryInformationProcess`](https://learn.microsoft.com/en-us/windows/win32/procthread/zwqueryinformationprocess)
-	![screenshot](lockbit_139.png)
+	![screenshot](images/lockbit_139.png)
 	- api (`0x425490`) ~ [`NtQueryInformationToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationtoken)
-	![screenshot](lockbit_140.png)
+	![screenshot](images/lockbit_140.png)
 	- api (`0x425494`) ~ [`NtSetInformationToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetinformationtoken)
-	![screenshot](lockbit_141.png)
+	![screenshot](images/lockbit_141.png)
 	- api (`0x425498`) ~ [`ZwSetInformationThread`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread)
-	![screenshot](lockbit_142.png)
+	![screenshot](images/lockbit_142.png)
 	- api (`0x42549C`) ~ [`NtSetSecurityObject`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetsecurityobject)
-	![screenshot](lockbit_143.png)
+	![screenshot](images/lockbit_143.png)
 	- api (`0x4254A0`) ~ [`NtOpenProcessToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenprocesstoken)
-	![screenshot](lockbit_144.png)
+	![screenshot](images/lockbit_144.png)
 	- api (`0x4254A4`) ~ [`ZwShutdownSystem`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwShutdownSystem.html)
-	![screenshot](lockbit_145.png)
+	![screenshot](images/lockbit_145.png)
 	- api (`0x4254A8`) ~ [`RtlAdjustPrivilege`](https://ntdoc.m417z.com/rtladjustprivilege)
-	![screenshot](lockbit_146.png)
+	![screenshot](images/lockbit_146.png)
 	- api (`0x4254AC`) ~ [`RtlInializeCriticalSection`](https://ntdoc.m417z.com/rtlinitializecriticalsection)
-	![screenshot](lockbit_147.png)
+	![screenshot](images/lockbit_147.png)
 	- api (`0x4254B0`) ~ [`RtlEnterCriticalSection`](https://ntdoc.m417z.com/rtlentercriticalsection)
-	![screenshot](lockbit_148.png)
+	![screenshot](images/lockbit_148.png)
 	- api (`0x4254B4`) ~ [`RtlLeaveCriticalSection`](https://ntdoc.m417z.com/rtlleavecriticalsection)
-	![screenshot](lockbit_149.png)
+	![screenshot](images/lockbit_149.png)
 	- api (`0x4254B8`) ~ [`RtlDeleteCriticalSection`](https://ntdoc.m417z.com/rtldeletecriticalsection)
-	![screenshot](lockbit_150.png)
+	![screenshot](images/lockbit_150.png)
 	- api (`0x4254BC`) ~ [`RtlInitUnicodeString`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring)
-	![screenshot](lockbit_151.png)
+	![screenshot](images/lockbit_151.png)
 	- api (`0x4254C0`) ~ [`RtlSetHeapInformation`](https://ntdoc.m417z.com/rtlsetheapinformation)
-	![screenshot](lockbit_152.png)
+	![screenshot](images/lockbit_152.png)
 	- api (`0x4254C4`) ~ [`LdrEnumerateLoadedModules`](https://ntdoc.m417z.com/ldrenumerateloadedmodules)
-	![screenshot](lockbit_153.png)
+	![screenshot](images/lockbit_153.png)
 	- api (`0x4254C8`) ~ [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess)
-	![screenshot](lockbit_154.png)
+	![screenshot](images/lockbit_154.png)
 	- api (`0x4254CC`) ~ [`ZwTerminateThread`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwTerminateThread.html)
-	![screenshot](lockbit_155.png)
+	![screenshot](images/lockbit_155.png)
 	- api (`0x4254D0`) ~ [`ZwClose`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwClose.html)
-	![screenshot](lockbit_156.png)
+	![screenshot](images/lockbit_156.png)
 	- api (`0x4254D4`) ~ [`ZwPrivilegeCheck`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwPrivilegeCheck.html)
-	![screenshot](lockbit_157.png)
+	![screenshot](images/lockbit_157.png)
 	- api (`0x4254D8`) ~ [`ZwWriteVirtualMemory`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwWriteVirtualMemory.html)
-	![screenshot](lockbit_158.png)
+	![screenshot](images/lockbit_158.png)
 	- api (`0x4254DC`) ~ [`ZwReadVirtualMemory`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwReadVirtualMemory.html)
-	![screenshot](lockbit_159.png)
+	![screenshot](images/lockbit_159.png)
 	- api (`0x4254E0`) ~ [`ZwProtectVirtualMemory`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwProtectVirtualMemory.html)
-	![screenshot](lockbit_160.png)
+	![screenshot](images/lockbit_160.png)
 	- api (`0x4254E4`) ~ [`NtAllocateVirtualMemory`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntallocatevirtualmemory)
-	![screenshot](lockbit_161.png)
+	![screenshot](images/lockbit_161.png)
 	- api (`0x4254E8`) ~ [`NtFreeVirtualMemory`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntfreevirtualmemory)
-	![screenshot](lockbit_162.png)
+	![screenshot](images/lockbit_162.png)
 	- api (`0x4254EC`) ~ [`RtlWow64EnableFsRedirectionEx`](https://ntdoc.m417z.com/rtlwow64enablefsredirectionex)
-	![screenshot](lockbit_163.png)
+	![screenshot](images/lockbit_163.png)
 	- api (`0x4254F0`) ~ [`NtQueryInstallUILanguage`](https://ntdoc.m417z.com/ntqueryinstalluilanguage)
-	![screenshot](lockbit_164.png)
+	![screenshot](images/lockbit_164.png)
 	- api (`0x4254F4`) ~ [`NtQueryDefaultUILanguage`](https://ntdoc.m417z.com/ntquerydefaultuilanguage)
-	![screenshot](lockbit_165.png)
+	![screenshot](images/lockbit_165.png)
 	- api (`0x4254F8`) ~ [`RtlTimeToTimeFields`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields)
-	![screenshot](lockbit_166.png)
+	![screenshot](images/lockbit_166.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_167.png)
+![screenshot](images/lockbit_167.png)
 - address `0x4254fc` ([`kernel32.dll`](https://www.geoffchappell.com/studies/windows/win32/kernel32/api/index.htm)): 
-![screenshot](lockbit_168.png)
+![screenshot](images/lockbit_168.png)
 First 4 bytes of param_2 are the hash of [`kernel32.dll`](https://www.geoffchappell.com/studies/windows/win32/kernel32/api/index.htm) DLL.
-![screenshot](lockbit_169.png)
+![screenshot](images/lockbit_169.png)
 	- api (`0x425500`) ~ [`SetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileattributesw)
-	![screenshot](lockbit_170.png)
+	![screenshot](images/lockbit_170.png)
 	- api (`0x425504`) ~ [`GetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileattributesw)
-	![screenshot](lockbit_171.png)
+	![screenshot](images/lockbit_171.png)
 	- api (`0x425508`) ~ [`FindFirstFileExW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstfileexw)
-	![screenshot](lockbit_172.png)
+	![screenshot](images/lockbit_172.png)
 	- api (`0x42550C`) ~ [`FindNextFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findnextfilew)
-	![screenshot](lockbit_173.png)
+	![screenshot](images/lockbit_173.png)
 	- api (`0x425510`) ~ [`FindClose`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findclose)
-	![screenshot](lockbit_174.png)
+	![screenshot](images/lockbit_174.png)
 	- api (`0x425514`) ~ [`CopyFileW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-copyfilew)
-	![screenshot](lockbit_175.png)
+	![screenshot](images/lockbit_175.png)
 	- api (`0x425518`) ~ [`MoveFileExW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw)
-	![screenshot](lockbit_176.png)
+	![screenshot](images/lockbit_176.png)
 	- api (`0x42551C`) ~ [`CreateThread`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread)
-	![screenshot](lockbit_177.png)
+	![screenshot](images/lockbit_177.png)
 	- api (`0x425520`) ~ [`CreateRemoteThread`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread)
-	![screenshot](lockbit_178.png)
+	![screenshot](images/lockbit_178.png)
 	- api (`0x425524`) ~ [`ResumeThread`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-resumethread)
-	![screenshot](lockbit_179.png)
+	![screenshot](images/lockbit_179.png)
 	- api (`0x425528`) ~ [`CreateFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
-	![screenshot](lockbit_180.png)
+	![screenshot](images/lockbit_180.png)
 	- api (`0x42552C`) ~ [`WriteFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile)
-	![screenshot](lockbit_181.png)
+	![screenshot](images/lockbit_181.png)
 	- api (`0x425530`) ~ [`ReadFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile)
-	![screenshot](lockbit_182.png)
+	![screenshot](images/lockbit_182.png)
 	- api (`0x425534`) ~ [`FlushFileBuffers`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers)
-	![screenshot](lockbit_183.png)
+	![screenshot](images/lockbit_183.png)
 	- api (`0x425538`) ~ [`WinExec`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-winexec)
-	![screenshot](lockbit_184.png)
+	![screenshot](images/lockbit_184.png)
 	- api (`0x42553C`) ~ [`Sleep`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep)
-	![screenshot](lockbit_185.png)
+	![screenshot](images/lockbit_185.png)
 	- api (`0x425540`) ~ [`GetOverlappedResult`](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getoverlappedresult)
-	![screenshot](lockbit_186.png)
+	![screenshot](images/lockbit_186.png)
 	- api (`0x425544`) ~ [`SetFilePointerEx`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointerex)
-	![screenshot](lockbit_187.png)
+	![screenshot](images/lockbit_187.png)
 	- api (`0x425548`) ~ [`WaitForSingleObject`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject)
-	![screenshot](lockbit_188.png)
+	![screenshot](images/lockbit_188.png)
 	- api (`0x42554C`) ~ [`WaitForMultipleObjects`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects)
-	![screenshot](lockbit_189.png)
+	![screenshot](images/lockbit_189.png)
 	- api (`0x425550`) ~ [`CreateIoCompletionPort`](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-createiocompletionport)
-	![screenshot](lockbit_190.png)
+	![screenshot](images/lockbit_190.png)
 	- api (`0x425554`) ~ [`GetQueuedCompletionStatus`](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus)
-	![screenshot](lockbit_191.png)
+	![screenshot](images/lockbit_191.png)
 	- api (`0x425558`) ~ [`PostQueuedCompletionStatus`](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-postqueuedcompletionstatus)
-	![screenshot](lockbit_192.png)
+	![screenshot](images/lockbit_192.png)
 	- api (`0x42555C`) ~ [`InterlockedIncrement`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-interlockedincrement)
-	![screenshot](lockbit_193.png)
+	![screenshot](images/lockbit_193.png)
 	- api (`0x425560`) ~ [`GetExitCodeThread`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodethread)
-	![screenshot](lockbit_194.png)
+	![screenshot](images/lockbit_194.png)
 	- api (`0x425564`) ~ [`GetLogicalDriveStringsW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrivestringsw)
-	![screenshot](lockbit_195.png)
+	![screenshot](images/lockbit_195.png)
 	- api (`0x425568`) ~ [`GetDriveTypeW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdrivetypew)
-	![screenshot](lockbit_196.png)
+	![screenshot](images/lockbit_196.png)
 	- api (`0x42556C`) ~ [`GetDiskFreeSpaceExW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw)
-	![screenshot](lockbit_197.png)
+	![screenshot](images/lockbit_197.png)
 	- api (`0x425570`) ~ [`DeleteFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew)
-	![screenshot](lockbit_198.png)
+	![screenshot](images/lockbit_198.png)
 	- api (`0x425574`) ~ [`CreateDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw)
-	![screenshot](lockbit_199.png)
+	![screenshot](images/lockbit_199.png)
 	- api (`0x425578`) ~ [`RemoveDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-removedirectoryw)
-	![screenshot](lockbit_200.png)
+	![screenshot](images/lockbit_200.png)
 	- api (`0x42557C`) ~ [`OpenMutexW`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-openmutexw)
-	![screenshot](lockbit_201.png)
+	![screenshot](images/lockbit_201.png)
 	- api (`0x425580`) ~ [`CreateMutexW`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw)
-	![screenshot](lockbit_202.png)
+	![screenshot](images/lockbit_202.png)
 	- api (`0x425584`) ~ [`ReleaseMutex`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-releasemutex)
-	![screenshot](lockbit_203.png)
+	![screenshot](images/lockbit_203.png)
 	- api (`0x425588`) ~ [`GetCurrentDirectoryW`](https://docs.rs/winapi/latest/i686-pc-windows-msvc/winapi/um/processenv/fn.GetCurrentDirectoryW.html)
-	![screenshot](lockbit_204.png)
+	![screenshot](images/lockbit_204.png)
 	- api (`0x42558C`) ~ [`SetCurrentDirectoryW`](https://docs.rs/winapi/latest/i686-pc-windows-msvc/winapi/um/processenv/fn.SetCurrentDirectoryW.html)
-	![screenshot](lockbit_205.png)
+	![screenshot](images/lockbit_205.png)
 	- api (`0x425590`) ~ [`GetTickCount`](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount)
-	![screenshot](lockbit_206.png)
+	![screenshot](images/lockbit_206.png)
 	- api (`0x425594`) ~ [`GetComputerNameW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getcomputernamew)
-	![screenshot](lockbit_207.png)
+	![screenshot](images/lockbit_207.png)
 	- api (`0x425598`) ~ [`SetVolumeMountPointW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setvolumemountpointw)
-	![screenshot](lockbit_208.png)
+	![screenshot](images/lockbit_208.png)
 	- api (`0x42559C`) ~ [`SetThreadPriority`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority)
-	![screenshot](lockbit_209.png)
+	![screenshot](images/lockbit_209.png)
 	- api (`0x4255A0`) ~ [`GetVolumePathNameW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumepathnamew)
-	![screenshot](lockbit_210.png)
+	![screenshot](images/lockbit_210.png)
 	- api (`0x4255A4`) ~ [`FindFirstVolumeW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirstvolumew)
-	![screenshot](lockbit_211.png)
+	![screenshot](images/lockbit_211.png)
 	- api (`0x4255A8`) ~ [`FindNextVolumeW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findnextvolumew)
-	![screenshot](lockbit_212.png)
+	![screenshot](images/lockbit_212.png)
 	- api (`0x4255AC`) ~ [`FindVolumeClose`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findvolumeclose)
-	![screenshot](lockbit_213.png)
+	![screenshot](images/lockbit_213.png)
 	- api (`0x4255B0`) ~ [`DeviceIoControl`](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol)
-	![screenshot](lockbit_214.png)
+	![screenshot](images/lockbit_214.png)
 	- api (`0x4255B4`) ~ [`GetVolumePathNamesForVolumeNameW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumepathnamesforvolumenamew)
-	![screenshot](lockbit_215.png)
+	![screenshot](images/lockbit_215.png)
 	- api (`0x4255B8`) ~  [`GetVolumeNameForVolumeMountPointW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumenameforvolumemountpointw)
-	![screenshot](lockbit_216.png)
+	![screenshot](images/lockbit_216.png)
 	- api (`0x4255BC`) ~ [`GetSystemTime`](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemtime)
-	![screenshot](lockbit_217.png)
+	![screenshot](images/lockbit_217.png)
 	- api (`0x4255C0`) ~ [`GetSystemTimeAsFileTime`](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemtimeasfiletime)
-	![screenshot](lockbit_218.png)
+	![screenshot](images/lockbit_218.png)
 	- api (`0x4255C4`) ~ [`FileTimeToLocalFileTime`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-filetimetolocalfiletime)
-	![screenshot](lockbit_219.png)
+	![screenshot](images/lockbit_219.png)
 	- api (`0x4255C8`) ~ [`ExitProcess`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess)
-	![screenshot](lockbit_220.png)
+	![screenshot](images/lockbit_220.png)
 	- api (`0x4255CC`) ~ [`GetEnvironmentVariableW`](https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getenvironmentvariablew)
-	![screenshot](lockbit_221.png)
+	![screenshot](images/lockbit_221.png)
 	- api (`0x4255D0`) ~ [`GetShortPathNameW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getshortpathnamew)
-	![screenshot](lockbit_222.png)
+	![screenshot](images/lockbit_222.png)
 	- api (`0x4255D4`) ~ [`CreateProcessW`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw)
-	![screenshot](lockbit_223.png)
+	![screenshot](images/lockbit_223.png)
 	- api (`0x4255D8`) ~ [`CreateNamedPipeW`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew)
-	![screenshot](lockbit_224.png)
+	![screenshot](images/lockbit_224.png)
 	- api (`0x4255DC`) ~ [`ConnectNamedPipe`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-connectnamedpipe)
-	![screenshot](lockbit_225.png)
+	![screenshot](images/lockbit_225.png)
 	- api (`0x4255E0`) ~ [`GetTempFileNameW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettempfilenamew)
-	![screenshot](lockbit_226.png)
+	![screenshot](images/lockbit_226.png)
 	- api (`0x4255E4`) ~ [`GlobalFree`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-globalfree)
-	![screenshot](lockbit_227.png)
+	![screenshot](images/lockbit_227.png)
 	- api (`0x4255E8`) ~ [`MulDiv`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-muldiv)
-	![screenshot](lockbit_228.png)
+	![screenshot](images/lockbit_228.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_229.png)
+![screenshot](images/lockbit_229.png)
 - address `0x4255ec` ([`advapi32.dll`](https://www.geoffchappell.com/studies/windows/win32/advapi32/index.htm?ta=11&tx=50)):
-![screenshot](lockbit_230.png)
+![screenshot](images/lockbit_230.png)
 First 4 bytes of param_2 are the hash of [`advapi32.dll`](https://www.geoffchappell.com/studies/windows/win32/advapi32/index.htm?ta=11&tx=50) DLL.
-![screenshot](lockbit_231.png)
+![screenshot](images/lockbit_231.png)
 	- api (`0x4255F0`) ~ [`MD4Init`](https://nxmnpg.lemoda.net/3/MD4)
-	![screenshot](lockbit_232.png)
+	![screenshot](images/lockbit_232.png)
 	- api (`0x4255F4`) ~ [`MD4Update`](https://nxmnpg.lemoda.net/3/MD4)
-	![screenshot](lockbit_233.png)
+	![screenshot](images/lockbit_233.png)
 	- api (`0x4255F8`) ~ [`MD4Final`](https://nxmnpg.lemoda.net/3/MD4)
-	![screenshot](lockbit_234.png)
+	![screenshot](images/lockbit_234.png)
 	- api (`0x4255FC`) ~ [`MD5Init`](https://nxmnpg.lemoda.net/3/MD5)
-	![screenshot](lockbit_235.png)
+	![screenshot](images/lockbit_235.png)
 	- api (`0x425600`) ~ [`MD5Update`](https://nxmnpg.lemoda.net/3/MD5)
-	![screenshot](lockbit_236.png)
+	![screenshot](images/lockbit_236.png)
 	- api (`0x425604`) ~ [`MD5Final`](https://nxmnpg.lemoda.net/3/MD5)
-	![screenshot](lockbit_237.png)
+	![screenshot](images/lockbit_237.png)
 	- api (`0x425608`) ~ [`SetNamedSecurityInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow)
-	![screenshot](lockbit_238.png)
+	![screenshot](images/lockbit_238.png)
 	- api (`0x42560C`) ~ [`RegCreateKeyExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regcreatekeyexw)
-	![screenshot](lockbit_239.png)
+	![screenshot](images/lockbit_239.png)
 	- api (`0x425610`) ~ [`RegSetValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsetvalueexw)
-	![screenshot](lockbit_240.png)
+	![screenshot](images/lockbit_240.png)
 	- api (`0x425614`) ~ [`RegQueryValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexw)
-	![screenshot](lockbit_241.png)
+	![screenshot](images/lockbit_241.png)
 	- api (`0x425618`) ~ [`RegDeleteKeyExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletekeyexw)
-	![screenshot](lockbit_242.png)
+	![screenshot](images/lockbit_242.png)
 	- api (`0x42561C`) ~ [`RegDeleteKeyW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletekeyw)
-	![screenshot](lockbit_243.png)
+	![screenshot](images/lockbit_243.png)
 	- api (`0x425620`) ~ [`RegEnumKeyW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regenumkeyw)
-	![screenshot](lockbit_244.png)
+	![screenshot](images/lockbit_244.png)
 	- api (`0x425624`) ~ [`OpenSCManagerW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagerw)
-	![screenshot](lockbit_245.png)
+	![screenshot](images/lockbit_245.png)
 	- api (`0x425628`) ~ [`EnumServicesStatusExW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw)
-	![screenshot](lockbit_246.png)
+	![screenshot](images/lockbit_246.png)
 	- api (`0x42562C`) ~ [`OpenServiceW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew)
-	![screenshot](lockbit_247.png)
+	![screenshot](images/lockbit_247.png)
 	- api (`0x425630`) ~ [`CreateServiceW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-createservicew)
-	![screenshot](lockbit_248.png)
+	![screenshot](images/lockbit_248.png)
 	- api (`0x425634`) ~ [`StartServiceW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew)
-	![screenshot](lockbit_249.png)
+	![screenshot](images/lockbit_249.png)
 	- api (`0x425638`) ~ [`SetServiceStatus`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-setservicestatus)
-	![screenshot](lockbit_250.png)
+	![screenshot](images/lockbit_250.png)
 	- api (`0x42563C`) ~ [`QueryServiceStatusEx`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex)
-	![screenshot](lockbit_251.png)
+	![screenshot](images/lockbit_251.png)
 	- api (`0x425640`) ~ [`ControlService`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-controlservice)
-	![screenshot](lockbit_252.png)
+	![screenshot](images/lockbit_252.png)
 	- api (`0x425644`) ~ [`DeleteService`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-deleteservice)
-	![screenshot](lockbit_253.png)
+	![screenshot](images/lockbit_253.png)
 	- api (`0x425648`) ~ [`CloseServiceHandle`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-closeservicehandle)
-	![screenshot](lockbit_254.png)
+	![screenshot](images/lockbit_254.png)
 	- api (`0x42564C`) ~ [`StartServiceCtrlDispatcherW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicectrldispatcherw)
-	![screenshot](lockbit_255.png)
+	![screenshot](images/lockbit_255.png)
 	- api (`0x425650`) ~ [`RegisterServiceCtrlHandlerW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-registerservicectrlhandlerw)
-	![screenshot](lockbit_256.png)
+	![screenshot](images/lockbit_256.png)
 	- api (`0x425654`) ~ [`CreateProcessAsUserW`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw)
-	![screenshot](lockbit_257.png)
+	![screenshot](images/lockbit_257.png)
 	- api (`0x425658`) ~ [`LogonUserW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-logonuserw)
-	![screenshot](lockbit_258.png)
+	![screenshot](images/lockbit_258.png)
 	- api (`0x42565C`) ~ [`GetUserNameW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getusernamew)
-	![screenshot](lockbit_259.png)
+	![screenshot](images/lockbit_259.png)
 	- api (`0x425660`) ~ [`ConvertSidToStringSidW`](https://learn.microsoft.com/en-us/windows/win32/api/sddl/nf-sddl-convertsidtostringsidw)
-	![screenshot](lockbit_260.png)
+	![screenshot](images/lockbit_260.png)
 	- api (`0x425664`) ~ [`LsaOpenPolicy`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaopenpolicy)
-	![screenshot](lockbit_261.png)
+	![screenshot](images/lockbit_261.png)
 	- api (`0x425668`) ~ [`LsaStorePrivateData`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsastoreprivatedata)
-	![screenshot](lockbit_262.png)
+	![screenshot](images/lockbit_262.png)
 	- api (`0x42566C`) ~ [`LsaClose`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaclose)
-	![screenshot](lockbit_263.png)
+	![screenshot](images/lockbit_263.png)
 	- api (`0x425670`) ~ [`SystemFunction040`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-rtlencryptmemory)
-	![screenshot](lockbit_264.png)
+	![screenshot](images/lockbit_264.png)
 	- api (`0x425674`) ~ [`SystemFunction041`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-rtldecryptmemory)
-	![screenshot](lockbit_265.png)
+	![screenshot](images/lockbit_265.png)
 	- api (`0x425678`) ~ [`CheckTokenMemebership`](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership)
-	![screenshot](lockbit_266.png)
+	![screenshot](images/lockbit_266.png)
 	- api (`0x42567C`) ~ [`OpenEventLogW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-openeventlogw)
-	![screenshot](lockbit_267.png)
+	![screenshot](images/lockbit_267.png)
 	- api (`0x425680`) ~ [`ClearEventLogW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-cleareventlogw)
-	![screenshot](lockbit_268.png)
+	![screenshot](images/lockbit_268.png)
 	- api (`0x425684`) ~ [`CloseEventLogW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-closeeventlog)
-	![screenshot](lockbit_269.png)
+	![screenshot](images/lockbit_269.png)
 	- api (`0x425688`) ~ [`CreateProcessWithLogonW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithlogonw)
-	![screenshot](lockbit_270.png)
+	![screenshot](images/lockbit_270.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_271.png)
+![screenshot](images/lockbit_271.png)
 - address `0x42568c` ([`userenv.dll`](https://windows10dll.nirsoft.net/userenv_dll.html)):
-![screenshot](lockbit_272.png)
+![screenshot](images/lockbit_272.png)
 First 4 bytes of param_2 are the hash of [`userenv.dll`](https://windows10dll.nirsoft.net/userenv_dll.html) DLL.
-![screenshot](lockbit_273.png)
+![screenshot](images/lockbit_273.png)
 	- api (`0x425690`) ~ [`CreateEnvironmentBlock`](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock)
-	![screenshot](lockbit_274.png)
+	![screenshot](images/lockbit_274.png)
 	- api (`0x425694`) ~ [`DestroyEnvironmentBlock`](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-destroyenvironmentblock)
-	![screenshot](lockbit_275.png)
+	![screenshot](images/lockbit_275.png)
 	- api (`0x425698`) ~ [`RefreshPolicyEx`](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-refreshpolicyex)
-	![screenshot](lockbit_276.png)
+	![screenshot](images/lockbit_276.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_277.png)
+![screenshot](images/lockbit_277.png)
 - address `0x42569c` ([`user32.dll`](https://windows10dll.nirsoft.net/user32_dll.html)):
-![screenshot](lockbit_278.png)
+![screenshot](images/lockbit_278.png)
 First 4 bytes of param_2 are the hash of [`user32.dll`](https://windows10dll.nirsoft.net/user32_dll.html) DLL.
-![screenshot](lockbit_279.png)
+![screenshot](images/lockbit_279.png)
 	- api (`0x4256A0`) ~ [`GetDC`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc)
-	![screenshot](lockbit_280.png)
+	![screenshot](images/lockbit_280.png)
 	- api (`0x4256A4`) ~ [`ReleaseDC`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-releasedc)
-	![screenshot](lockbit_281.png)
+	![screenshot](images/lockbit_281.png)
 	- api (`0x4256A8`) ~ [`DrawTextW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-drawtextw)
-	![screenshot](lockbit_282.png)
+	![screenshot](images/lockbit_282.png)
 	- api (`0x4256AC`) ~ [`DrawTextA`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-drawtexta)
-	![screenshot](lockbit_283.png)
+	![screenshot](images/lockbit_283.png)
 	- api (`0x4256B0`) ~ [`SystemParametersInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow)
-	![screenshot](lockbit_284.png)
+	![screenshot](images/lockbit_284.png)
 	- api (`0x4256B4`) ~ [`OpenWindowStationW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-openwindowstationw)
-	![screenshot](lockbit_285.png)
+	![screenshot](images/lockbit_285.png)
 	- api (`0x4256B8`) ~ [`CloseWindowStation`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-closewindowstation)
-	![screenshot](lockbit_286.png)
+	![screenshot](images/lockbit_286.png)
 	- api (`0x4256BC`) ~ [`OpenDesktopW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-opendesktopw)
-	![screenshot](lockbit_287.png)
+	![screenshot](images/lockbit_287.png)
 	- api (`0x4256C0`) ~ [`CloseDesktop`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-closedesktop)
-	![screenshot](lockbit_288.png)
+	![screenshot](images/lockbit_288.png)
 	- api (`0x4256C4`) ~ [`GetSystemMetrics`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetrics)
-	![screenshot](lockbit_289.png)
+	![screenshot](images/lockbit_289.png)
 	- api (`0x4256C8`) ~ [`GetShellWindow`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getshellwindow)
-	![screenshot](lockbit_290.png)
+	![screenshot](images/lockbit_290.png)
 	- api (`0x4256CC`) ~ [`GetDesktopWindow`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdesktopwindow)
-	![screenshot](lockbit_291.png)
+	![screenshot](images/lockbit_291.png)
 	- api (`0x4256D0`) ~ [`IsWindowVisible`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-iswindowvisible)
-	![screenshot](lockbit_292.png)
+	![screenshot](images/lockbit_292.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_293.png)
+![screenshot](images/lockbit_293.png)
 - address `0x4256d4` ([`gdi32.dll`](https://windows10dll.nirsoft.net/gdi32_dll.html)):
-![screenshot](lockbit_294.png)
+![screenshot](images/lockbit_294.png)
 First 4 bytes of param_2 are the hash of [`gdi32.dll`](https://windows10dll.nirsoft.net/gdi32_dll.html) DLL.
-![screenshot](lockbit_295.png)
+![screenshot](images/lockbit_295.png)
 	- api (`0x4256D8`) ~ [`CreateFontW`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createfontw)
-	![screenshot](lockbit_296.png)
+	![screenshot](images/lockbit_296.png)
 	- api (`0x4256DC`) ~ [`CreateFontIndirectW`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createfontindirectw)
-	![screenshot](lockbit_297.png)
+	![screenshot](images/lockbit_297.png)
 	- api (`0x4256E0`) ~ [`GetDeviceCaps`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps)
-	![screenshot](lockbit_298.png)
+	![screenshot](images/lockbit_298.png)
 	- api (`0x4256E4`) ~ [`BitBlt`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-bitblt)
-	![screenshot](lockbit_299.png)
+	![screenshot](images/lockbit_299.png)
 	- api (`0x4256E8`) ~ [`SetBkColor`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-setbkcolor)
-	![screenshot](lockbit_300.png)
+	![screenshot](images/lockbit_300.png)
 	- api (`0x4256EC`) ~ [`CreateDCW`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createdcw)
-	![screenshot](lockbit_301.png)
+	![screenshot](images/lockbit_301.png)
 	- api (`0x4256F0`) ~ [`CreateCompatibleBitmap`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createcompatiblebitmap)
-	![screenshot](lockbit_302.png)
+	![screenshot](images/lockbit_302.png)
 	- api (`0x4256F4`) ~ [`CreateCompatibleDC`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createcompatibledc)
-	![screenshot](lockbit_303.png)
+	![screenshot](images/lockbit_303.png)
 	- api (`0x4256F8`) ~ [`SelectObject`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-selectobject)
-	![screenshot](lockbit_304.png)
+	![screenshot](images/lockbit_304.png)
 	- api (`0x4256FC`) ~ [`CreateDIBSection`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createdibsection)
-	![screenshot](lockbit_305.png)
+	![screenshot](images/lockbit_305.png)
 	- api (`0x425700`) ~ [`DeleteDC`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-deletedc)
-	![screenshot](lockbit_306.png)
+	![screenshot](images/lockbit_306.png)
 	- api (`0x425704`) ~ [`DeleteObject`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-deleteobject)
-	![screenshot](lockbit_307.png)
+	![screenshot](images/lockbit_307.png)
 	- api (`0x425708`) ~ [`SetTextColor`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-settextcolor)
-	![screenshot](lockbit_308.png)
+	![screenshot](images/lockbit_308.png)
 	- api (`0x42570C`) ~ [`SetBKMode`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-setbkmode)
-	![screenshot](lockbit_309.png)
+	![screenshot](images/lockbit_309.png)
 	- api (`0x425710`) ~ [`SetMapMode`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-setmapmode)
-	![screenshot](lockbit_310.png)
+	![screenshot](images/lockbit_310.png)
 	- api (`0x425714`) ~ [`GetTextExtentPoint32W`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-gettextextentpoint32w)
-	![screenshot](lockbit_311.png)
+	![screenshot](images/lockbit_311.png)
 	- api (`0x425718`) ~ [`StartDocW`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-startdocw)
-	![screenshot](lockbit_312.png)
+	![screenshot](images/lockbit_312.png)
 	- api (`0x42571C`) ~ [`EndDoc`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-enddoc) 
-	![screenshot](lockbit_313.png)
+	![screenshot](images/lockbit_313.png)
 	- api (`0x425720`) ~ [`StartPage`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-startpage)
-	![screenshot](lockbit_314.png)
+	![screenshot](images/lockbit_314.png)
 	- api (`0x425724`) ~ [`EndPage`](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-endpage)
-	![screenshot](lockbit_315.png)
+	![screenshot](images/lockbit_315.png)
 In blue we can see the pointers to the allocation of each API (after first four 00 bytes):
-![screenshot](lockbit_316.png)
+![screenshot](images/lockbit_316.png)
 - address `0x425728` ([`shell32.dll`](https://windows10dll.nirsoft.net/shell32_dll.html)):
-![screenshot](lockbit_317.png)
+![screenshot](images/lockbit_317.png)
 First 4 bytes of param_2 are the hash of [`shell32.dll`](https://windows10dll.nirsoft.net/shell32_dll.html) DLL.
-![screenshot](lockbit_318.png)
+![screenshot](images/lockbit_318.png)
 	- api (`0x42572C`) ~ [`CommandLineToArgvW`](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw)
-	![screenshot](lockbit_319.png)
+	![screenshot](images/lockbit_319.png)
 	- api (`0x425730`) ~ [`ShGetSpecialFolderPathW`](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shgetspecialfolderpathw)
-	![screenshot](lockbit_320.png)
+	![screenshot](images/lockbit_320.png)
 	- api (`0x425734`) ~ [`ShellExecuteW`](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew)
-	![screenshot](lockbit_321.png)
+	![screenshot](images/lockbit_321.png)
 	- api (`0x425738`) ~ [`ShChangeNotify`](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shchangenotify)
-	![screenshot](lockbit_322.png)
+	![screenshot](images/lockbit_322.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_323.png)
+![screenshot](images/lockbit_323.png)
 - address `0x42573c` ([`ole32.dll`](https://windows10dll.nirsoft.net/ole32_dll.html)):
-![screenshot](lockbit_324.png)
+![screenshot](images/lockbit_324.png)
 First 4 bytes of param_2 are the hash of [`ole32.dll`](https://windows10dll.nirsoft.net/ole32_dll.html) DLL.
-![screenshot](lockbit_325.png)
+![screenshot](images/lockbit_325.png)
 	- api (`0x425740`) ~ [`CoCreateGuid`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateguid)
-	![screenshot](lockbit_326.png)
+	![screenshot](images/lockbit_326.png)
 	- api (`0x425744`) ~ [`CoInitialize`](https://learn.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize)
-	![screenshot](lockbit_327.png)
+	![screenshot](images/lockbit_327.png)
 	- api (`0x425748`) ~ [`CoInitializeEx`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coinitializeex)
-	![screenshot](lockbit_328.png)
+	![screenshot](images/lockbit_328.png)
 	- api (`0x42574C`) ~ [`CoUninitialize`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-couninitialize)
-	![screenshot](lockbit_329.png)
+	![screenshot](images/lockbit_329.png)
 	- api (`0x425750`) ~ [`CoGetObject`](https://learn.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-cogetobject)
-	![screenshot](lockbit_330.png)
+	![screenshot](images/lockbit_330.png)
 	- api (`0x425754`) ~ [`CoInitializeSecurity`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coinitializesecurity)
-	![screenshot](lockbit_331.png)
+	![screenshot](images/lockbit_331.png)
 	- api (`0x425758`) ~ [`CoCreateInstance`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance)
-	![screenshot](lockbit_332.png)
+	![screenshot](images/lockbit_332.png)
 	- api (`0x42575C`) ~ [`CoCreateInstanceEx`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstanceex)
-	![screenshot](lockbit_333.png)
+	![screenshot](images/lockbit_333.png)
 	- api (`0x425760`) ~ [`CoSetProxyByBlanket`](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket)
-	![screenshot](lockbit_334.png)
+	![screenshot](images/lockbit_334.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_335.png)
+![screenshot](images/lockbit_335.png)
 - address `0x425764` ([`shlwapi.dll`](https://windows10dll.nirsoft.net/shlwapi_dll.html)):
-![screenshot](lockbit_336.png)
+![screenshot](images/lockbit_336.png)
 First 4 bytes of param_2 are the hash of [`shlwapi.dll`](https://windows10dll.nirsoft.net/shlwapi_dll.html) DLL.
-![screenshot](lockbit_337.png)
+![screenshot](images/lockbit_337.png)
 	- api (`0x425768`) ~ [`PathFindExtensionW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindextensionw)
-	![screenshot](lockbit_338.png)
+	![screenshot](images/lockbit_338.png)
 	- api (`0x42576C`) ~ [`PathIsNetworkPathW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathisnetworkpathw)
-	![screenshot](lockbit_339.png)
+	![screenshot](images/lockbit_339.png)
 	- api (`0x425770`) ~ [`PathFindFileNameW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindfilenamew)
-	![screenshot](lockbit_340.png)
+	![screenshot](images/lockbit_340.png)
 	- api (`0x425774`) ~ [`PathFindFileNameA`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindfilenamea)
-	![screenshot](lockbit_341.png)
+	![screenshot](images/lockbit_341.png)
 	- api (`0x425778`) ~ [`PathIsUNCServerW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathisuncserverw)
-	![screenshot](lockbit_342.png)
+	![screenshot](images/lockbit_342.png)
 	- api (`0x42577C`) ~ [`PathQuoteSpacesW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathquotespacesw)
-	![screenshot](lockbit_343.png)
+	![screenshot](images/lockbit_343.png)
 	- api (`0x425780`) ~ [`PathUnquoteSpacesW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathunquotespacesw)
-	![screenshot](lockbit_344.png)
+	![screenshot](images/lockbit_344.png)
 	- api (`0x425784`) ~ [`PathRemoveFileSpecW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathremovefilespecw)
-	![screenshot](lockbit_345.png)
+	![screenshot](images/lockbit_345.png)
 	- api (`0x425788`) ~ [`PathIsFileSpecW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathisfilespecw)
-	![screenshot](lockbit_346.png)
+	![screenshot](images/lockbit_346.png)
 	- api (`0x42578C`) ~ [`PathIsDirectoryEmptyW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathisdirectoryemptyw)
-	![screenshot](lockbit_347.png)
+	![screenshot](images/lockbit_347.png)
 	- api (`0x425790`) ~ [`PathAppendW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathappendw)
-	![screenshot](lockbit_348.png)
+	![screenshot](images/lockbit_348.png)
 	- api (`0x425794`) ~ [`PathAppendA`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathappenda)
-	![screenshot](lockbit_349.png)
+	![screenshot](images/lockbit_349.png)
 	- api (`0x425798`) ~ [`IUnknown_QueryService`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-iunknown_queryservice)
-	![screenshot](lockbit_350.png)
+	![screenshot](images/lockbit_350.png)
 In blue we can see the pointers to the allocation of each API (after first four 00 bytes):
-![screenshot](lockbit_351.png)
+![screenshot](images/lockbit_351.png)
 - address `0x42579c` ([`oleaut.dll`](https://windows10dll.nirsoft.net/oleaut32_dll.html)):
-![screenshot](lockbit_352.png)
+![screenshot](images/lockbit_352.png)
 First 4 bytes of param_2 are the hash of [`oleaut.dll`](https://windows10dll.nirsoft.net/oleaut32_dll.html) DLL.
-![screenshot](lockbit_353.png)
+![screenshot](images/lockbit_353.png)
 	- api (`0x4257A0`) ~ [`VariantInit`](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-variantinit)
-	![screenshot](lockbit_354.png)
+	![screenshot](images/lockbit_354.png)
 	- api (`0x4257A4`) ~ [`VariantClear`](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-variantclear)
-	![screenshot](lockbit_355.png)
+	![screenshot](images/lockbit_355.png)
 	- api (`0x4257A8`) ~ [`SysAllocString`](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstring)
-	![screenshot](lockbit_356.png)
+	![screenshot](images/lockbit_356.png)
 	- api (`0x4257AC`) ~ [`SysFreeString`](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysfreestring)
-	![screenshot](lockbit_357.png)
+	![screenshot](images/lockbit_357.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_358.png)
+![screenshot](images/lockbit_358.png)
 - address `0x4257b0` ([`wtsapi32.dll`](https://windows10dll.nirsoft.net/wtsapi32_dll.html)):
-![screenshot](lockbit_359.png)
+![screenshot](images/lockbit_359.png)
 First 4 bytes of param_2 are the hash of [`wtsapi32.dll`](https://windows10dll.nirsoft.net/wtsapi32_dll.html) DLL.
-![screenshot](lockbit_360.png)
+![screenshot](images/lockbit_360.png)
 	- api (`0x4257B4`) ~ [`QueryUserToken`](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken)
-	![screenshot](lockbit_361.png)
+	![screenshot](images/lockbit_361.png)
 In blue we can see the pointers to the allocation of each API (after first four 00 bytes):
-![screenshot](lockbit_362.png)
+![screenshot](images/lockbit_362.png)
 - address `0x4257b8` ([`rstrtmgr.dll`](https://windows10dll.nirsoft.net/rstrtmgr_dll.html)):
-![screenshot](lockbit_363.png)
+![screenshot](images/lockbit_363.png)
 First 4 bytes of param_2 are the hash of [`rstrtmgr.dll`](https://windows10dll.nirsoft.net/rstrtmgr_dll.html) DLL.
-![screenshot](lockbit_364.png)
+![screenshot](images/lockbit_364.png)
 	- api (`0x4257BC`) ~ [`RmStartSession`](https://learn.microsoft.com/en-us/windows/win32/api/restartmanager/nf-restartmanager-rmstartsession)
-	![screenshot](lockbit_365.png)
+	![screenshot](images/lockbit_365.png)
 	- api (`0x4257C0`) ~ [`RmRegisterResources`](https://learn.microsoft.com/en-us/windows/win32/api/restartmanager/nf-restartmanager-rmregisterresources)
-	![screenshot](lockbit_366.png)
+	![screenshot](images/lockbit_366.png)
 	- api (`0x4257C4`) ~ [`RmGetList`](https://learn.microsoft.com/en-us/windows/win32/api/restartmanager/nf-restartmanager-rmgetlist)
-	![screenshot](lockbit_367.png)
+	![screenshot](images/lockbit_367.png)
 	- api (`0x4257C8`) ~ [`RmEndSession`](https://learn.microsoft.com/en-us/windows/win32/api/restartmanager/nf-restartmanager-rmendsession)
-	![screenshot](lockbit_368.png)
+	![screenshot](images/lockbit_368.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_369.png)
+![screenshot](images/lockbit_369.png)
 - address `0x4257cc` ([`netapi32.dll`](https://windows10dll.nirsoft.net/netapi32_dll.html)):
-![screenshot](lockbit_370.png)
+![screenshot](images/lockbit_370.png)
 First 4 bytes of param_2 are the hash of [`netapi32.dll`](https://windows10dll.nirsoft.net/netapi32_dll.html)l DLL.
-![screenshot](lockbit_371.png)
+![screenshot](images/lockbit_371.png)
 	- api (`0x4257D0`) ~ [`NetGetJoinInformation`](https://learn.microsoft.com/en-us/windows/win32/api/lmjoin/nf-lmjoin-netgetjoininformation)
-	![screenshot](lockbit_372.png)
+	![screenshot](images/lockbit_372.png)
 	- api (`0x4257D4`) ~ [`NetShareEnum`](https://learn.microsoft.com/en-us/windows/win32/api/lmshare/nf-lmshare-netshareenum)
-	![screenshot](lockbit_373.png)
+	![screenshot](images/lockbit_373.png)
 	- api (`0x4257D8`) ~ [`NetUserEnum`](https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/nf-lmaccess-netuserenum)
-	![screenshot](lockbit_374.png)
+	![screenshot](images/lockbit_374.png)
 	- api (`0x4257DC`) ~ [`NetUserSetInfo`](https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/nf-lmaccess-netusersetinfo)
-	![screenshot](lockbit_375.png)
+	![screenshot](images/lockbit_375.png)
 	- api (`0x4257E0`) ~ [`NetUserGetInfo`](https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/nf-lmaccess-netusergetinfo)
-	![screenshot](lockbit_376.png)
+	![screenshot](images/lockbit_376.png)
 	- api (`0x4257E4`) ~ [`NetApiBufferFree`](https://learn.microsoft.com/en-us/windows/win32/api/lmapibuf/nf-lmapibuf-netapibufferfree)
-	![screenshot](lockbit_377.png)
+	![screenshot](images/lockbit_377.png)
 	- api (`0x4257E8`) ~ [`DsGetDcNameW`](https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcnamew)
-	![screenshot](lockbit_378.png)
+	![screenshot](images/lockbit_378.png)
 	- api (`0x4257EC`) ~ [`DsGetDcOpenW`](https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcopenw)
-	![screenshot](lockbit_379.png)
+	![screenshot](images/lockbit_379.png)
 	- api (`0x4257F0`) ~ [`DsGetDcNextW`](https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcnextw)
-	![screenshot](lockbit_380.png)
+	![screenshot](images/lockbit_380.png)
 	- api (`0x4257F4`) ~ [`DsGetDcCloseW`](https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcclosew)
-	![screenshot](lockbit_381.png)
+	![screenshot](images/lockbit_381.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_382.png)
+![screenshot](images/lockbit_382.png)
 - address `0x4257f8` ([`activeds.dll`](https://windows10dll.nirsoft.net/activeds_dll.html)):
-![screenshot](lockbit_383.png)
+![screenshot](images/lockbit_383.png)
 First 4 bytes of param_2 are the hash of [`activeds.dll`](https://windows10dll.nirsoft.net/activeds_dll.html) DLL.
-![screenshot](lockbit_384.png)
+![screenshot](images/lockbit_384.png)
 	- api (`0x4257FC`) ~ [`ADSOpenObject`](https://learn.microsoft.com/en-us/windows/win32/api/adshlp/nf-adshlp-adsopenobject)
-	![screenshot](lockbit_385.png)
+	![screenshot](images/lockbit_385.png)
 	- api (`0x425800`) ~ [`ADSGetObject`](https://learn.microsoft.com/en-us/windows/win32/api/adshlp/nf-adshlp-adsgetobject)
-	![screenshot](lockbit_386.png)
+	![screenshot](images/lockbit_386.png)
 	- api (`0x425804`) ~ [`ADSBuildEnumerator`](https://learn.microsoft.com/en-us/windows/win32/api/adshlp/nf-adshlp-adsbuildenumerator)
-	![screenshot](lockbit_387.png)
+	![screenshot](images/lockbit_387.png)
 	- api (`0x425808`) ~ [`AdsEnumerateNext`](https://learn.microsoft.com/en-us/windows/win32/api/adshlp/nf-adshlp-adsenumeratenext)
-	![screenshot](lockbit_388.png)
+	![screenshot](images/lockbit_388.png)
 	- api (`0x42580C`) ~ [`AdsFreeEnumerator`](https://learn.microsoft.com/en-us/windows/win32/api/adshlp/nf-adshlp-adsfreeenumerator)
-	![screenshot](lockbit_389.png)
+	![screenshot](images/lockbit_389.png)
 	In blue we can see the pointers to the allocation of each API (after first four 00 bytes):
-![screenshot](lockbit_390.png)
+![screenshot](images/lockbit_390.png)
 - address `0x425810` ([`wininet.dll`](https://windows10dll.nirsoft.net/wininet_dll.html)):
-![screenshot](lockbit_391.png)
+![screenshot](images/lockbit_391.png)
 First 4 bytes of param_2 are the hash of [`wininet.dll`](https://windows10dll.nirsoft.net/wininet_dll.html) DLL. 
-![screenshot](lockbit_392.png)
+![screenshot](images/lockbit_392.png)
 	- api (`0x425814`) ~ [`InternetOpenW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetopenw)
-	![screenshot](lockbit_393.png)
+	![screenshot](images/lockbit_393.png)
 	- api (`0x425818`) ~ [`InternetConnectW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetconnectw)
-	![screenshot](lockbit_394.png)
+	![screenshot](images/lockbit_394.png)
 	- api (`0x42581C`) ~ [`InternetSetOptionW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetsetoptionw)
-	![screenshot](lockbit_395.png)
+	![screenshot](images/lockbit_395.png)
 	- api (`0x425820`) ~ [`InternetQueryOptionW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetqueryoptionw)
-	![screenshot](lockbit_396.png)
+	![screenshot](images/lockbit_396.png)
 	- api (`0x425824`) ~ [`InternetCloseHandle`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetclosehandle)
-	![screenshot](lockbit_397.png)
+	![screenshot](images/lockbit_397.png)
 	- api (`0x425828`) ~ [`HttpQueryInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-httpqueryinfow)
-	![screenshot](lockbit_398.png)
+	![screenshot](images/lockbit_398.png)
 	- api (`0x42582C`) ~ [`HttpOpenRequestW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-httpopenrequestw)
-	![screenshot](lockbit_399.png)
+	![screenshot](images/lockbit_399.png)
 	- api (`0x425830`) ~ [`HttpSendRequestW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-httpsendrequestw)
-	![screenshot](lockbit_400.png)
+	![screenshot](images/lockbit_400.png)
 	- api (`0x425834`) ~ [`InternetQueryDataAvailable`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetquerydataavailable)
-	![screenshot](lockbit_401.png)
+	![screenshot](images/lockbit_401.png)
 	- api (`0x425838`) ~ [`InternetReadFile`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetreadfile)
-	![screenshot](lockbit_402.png)
+	![screenshot](images/lockbit_402.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_403.png)
+![screenshot](images/lockbit_403.png)
 - address `0x42583c` ([`wsock32.dll`](https://windows10dll.nirsoft.net/wsock32_dll.html)):
-![screenshot](lockbit_404.png)
+![screenshot](images/lockbit_404.png)
 First 4 bytes of param_2 are the hash of [`wsock32.dll`](https://windows10dll.nirsoft.net/wsock32_dll.html) DLL.
-![screenshot](lockbit_405.png)
+![screenshot](images/lockbit_405.png)
 	- api (`0x425840`) ~ [`WSAStartup`](https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsastartup)
-	![screenshot](lockbit_406.png)
+	![screenshot](images/lockbit_406.png)
 	- api (`0x425844`) ~ [`WSACleanup`](https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsacleanup)
-	![screenshot](lockbit_407.png)
+	![screenshot](images/lockbit_407.png)
 	- api (`0x425848`) ~ [`gethostbyname`](https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-gethostbyname)
-	![screenshot](lockbit_408.png)
+	![screenshot](images/lockbit_408.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_499.png)
+![screenshot](images/lockbit_499.png)
 - address `0x42584c` ([`mpr.dll`](https://windows10dll.nirsoft.net/mpr_dll.html)):
-![screenshot](lockbit_500.png)
+![screenshot](images/lockbit_500.png)
 First 4 bytes of param_2 are the hash of [`mpr.dll`](https://windows10dll.nirsoft.net/mpr_dll.html)l DLL.
-![screenshot](lockbit_501.png)
+![screenshot](images/lockbit_501.png)
 	- api (`0x425850`) ~ [`WNetAddConnection2W`](https://learn.microsoft.com/en-us/windows/win32/api/winnetwk/nf-winnetwk-wnetaddconnection2w)
-	![screenshot](lockbit_502.png)
+	![screenshot](images/lockbit_502.png)
 	- api (`0x425854`) ~ [`WNetCancelConnection2W`](https://learn.microsoft.com/en-us/windows/win32/api/winnetwk/nf-winnetwk-wnetcancelconnection2w)
-	![screenshot](lockbit_503.png)
+	![screenshot](images/lockbit_503.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_504.png)
+![screenshot](images/lockbit_504.png)
 - address `0x425858` ([`winspool.drv`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/winspool/)):
-![screenshot](lockbit_505.png)
+![screenshot](images/lockbit_505.png)
 First 4 bytes of param_2 are the hash of [`winspool.drv`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/winspool/) DLL.
-![screenshot](lockbit_506.png)
+![screenshot](images/lockbit_506.png)
 	- api (`0x42585C`) ~ [`OpenPrinterW`](https://docs.rs/winapi/latest/i686-pc-windows-msvc/winapi/um/winspool/fn.OpenPrinterW.html)
-	![screenshot](lockbit_507.png)
+	![screenshot](images/lockbit_507.png)
 	- api (`0x425860`) ~ [`ClosePrinter`](https://docs.rs/winapi/latest/i686-pc-windows-msvc/winapi/um/winspool/fn.ClosePrinter.html)
-	![screenshot](lockbit_508.png)
+	![screenshot](images/lockbit_508.png)
 	- api (`0x425864`) ~ [`EnumPrintersW`](https://docs.rs/winapi/latest/i686-pc-windows-msvc/winapi/um/winspool/fn.EnumPrintersW.html)
-	![screenshot](lockbit_509.png)
+	![screenshot](images/lockbit_509.png)
 	- api (`0x425868`) ~ [`DocumentPropertiesW`](https://docs.rs/winapi/latest/i686-pc-windows-msvc/winapi/um/winspool/fn.DocumentPropertiesW.html)
-	![screenshot](lockbit_510.png)
+	![screenshot](images/lockbit_510.png)
 In blue we can see the pointers to the allocation of each API (after first four 00 bytes)I:
-![screenshot](lockbit_511.png)
+![screenshot](images/lockbit_511.png)
 - address `0x42586c` ([`gpedit.dll`](https://windows10dll.nirsoft.net/gpedit_dll.html)):
-![screenshot](lockbit_512.png)
+![screenshot](images/lockbit_512.png)
 First 4 bytes of param_2 are the hash of [`gpedit.dll`](https://windows10dll.nirsoft.net/gpedit_dll.html) DLL.
-![screenshot](lockbit_513.png)
+![screenshot](images/lockbit_513.png)
 	- api (`0x425870`) ~ [`CreateGPOLink`](https://learn.microsoft.com/en-us/windows/win32/api/gpedit/nf-gpedit-creategpolink)
-	![screenshot](lockbit_514.png)
+	![screenshot](images/lockbit_514.png)
 In blue we can see the pointers to the allocation of each API:
-![screenshot](lockbit_515.png)
+![screenshot](images/lockbit_515.png)
 
 After this vast import of obfuscated functions (305 functions), at first glance reading the name of the functions we can see that LockBit dynamically resolves functions using a custom hash-based resolver. Each function address pointer is stored in a consecutive 4-byte block pointer. These imported APIs span a wide range of system functionality:
 - **Memory and heap management (`ntdll.dll`)**: Functions like `RtlCreateHeap`, `RtlAllocateHeap`, and `RtlFreeHeap` are used for dynamic memory operations essential to internal structures and payload deployment.
@@ -2104,36 +2104,36 @@ After this vast import of obfuscated functions (305 functions), at first glance 
 - **Printing and policies (`winspool.drv`, `gpedit.dll`)**: Used to enumerate or configure printer devices and link GPOs to organizational units, potentially for evasion or system manipulation.
 
 We can see that they are dynamically invoked by referencing the address where they are stored if we look at the next address to be executed after the massive import of functions of `load_apis_func` at the function `FUN_0040b444`.
-![screenshot](lockbit_516.png)
+![screenshot](images/lockbit_516.png)
 - hide_thread_from_dbg_func (FUN_0040b444)
 	Now we don't need to look at assembly as it's quite clear the functionality looking at the decompiled code. If `param_1` is `zero`, it is, the changes it to `-2` and invokes the function at the address `DAT_00425498` with four parameters. If we look at the list of offsets we will see that the function is [ZwSetInformationThread](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread). 
-	![screenshot](lockbit_517.png)
+	![screenshot](images/lockbit_517.png)
 	What the function does is with the first parameter, a HANDLE, `param_1` equals `-2`(`0xfffffffe`), which is the current thread, looking as this [`source states`](https://ntdoc.m417z.com/ntcurrentthread). Second parameter, a [`THREADINFOCLASS`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/ps/psquery/class.htm), `0x11` sets the class for the thread which references `ThreadHideFromDebugger`, an obvious anti-debug measure. If we look at this [`source`](https://colinsenner.com/blog/thread-hide-from-debugger/) you can see how it hides instantly from the debugger, we will need to get rid of this to continue debugging.
 	
 	Based on this we will rename the function to `hide_thread_from_dbg_func`.
-	![screenshot](lockbit_518.png)
+	![screenshot](images/lockbit_518.png)
 
 ---
 
 Before doing anything, as the function what only does is to alter that it can be visible to the debugger, we will substitute the call to the function [`ZwSetInformationThread`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread)  and the pushed arguments to a NOP instruction, making the first one a `MOV EAX, 0x0` in order to return zero to have some parameter to return, as we did before with Ghidra, patching the binary of LockBit.
-![screenshot](lockbit_519.png)
+![screenshot](images/lockbit_519.png)
 Now export it as always.
 
 ---
 
 As we have seen, now the functions are being called dynamically, so if we go to `DAT_00425498` we will see more addresses being called as functions, with the same offset of the imported addresses:
-![screenshot](lockbit_520.png)
+![screenshot](images/lockbit_520.png)
 To make the execution easier to understand, it will be necessary to rename every one of them by going to a function that uses it and renaming it in the decompiled code, like with the previous one:
-![screenshot](lockbit_521.png)
+![screenshot](images/lockbit_521.png)
 After renaming each one of them, there are some functions that despite being retrieved are not being used, especially all the ones [`wsock32.dll`](https://windows10dll.nirsoft.net/wsock32_dll.html).
 
 Now the next function to analyse is `FUN_00417738`, executed after `hide_thread_from_dbg_func`.
-![screenshot](lockbit_522.png)
+![screenshot](images/lockbit_522.png)
 - decompress_obfuscated_code_func (FUN_00417738):
 	This function receives as `param_1` the handle to the created heap and as `param_2` the [`RtlAllocateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap) function.
 	If we look at the start of the code, we can clearly see an anti-debug technique, but this time it now checks at the created heap, on its [`structure`](https://www.vergiliusproject.com/kernels/x86/windows-10/22h2/_HEAP), the `ForceFlags` field with the offset `0x44` if the flag [`HEAP_VALIDATE_PARAMETERS_ENABLED`](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/enable-heap-parameter-checking) is active, which is slightly different than the previous one, because this one looks at `ForceFlags` instead of flags.
 	If we look at the heap handle we can see in the `ForceFlags` field the flags `0x40000060`, which are [`HEAP_VALIDATE_PARAMETERS_ENABLED`](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/enable-heap-parameter-checking)(`0x40000000`),  [HEAP_FREE_CHECKING_ENABLED](https://anti-debug.checkpoint.com/techniques/debug-flags.html#manual-checks-heap-protection)(`0x00000040`) and [`HEAP_TAIL_CHECKING_ENABLED`](https://anti-debug.checkpoint.com/techniques/debug-flags.html#manual-checks-heap-protection)(`0x00000020`), as it is discussed at [`checkpoint article`](https://anti-debug.checkpoint.com/techniques/debug-flags.html#manual-checks-heap-flags), that these flags are set in `ForceFlags` when debugging.
-	![screenshot](lockbit_523.png)
+	![screenshot](images/lockbit_523.png)
 ```assembly
 MOV EBX,[EBP + param_1]       ; EBX = param_1 (heap handle)
 TEST [EBX + 0x44], 0x40000000 ; Check if flag HEAP_VALIDATE_PARAMETERS_ENABLED
@@ -2147,7 +2147,7 @@ ROR EBX,0x1                   ; If active -> debugged, corrupt heap handle with 
 ---
 .
 	Once again we will need to get rid of this anti-debugging technique substituting the ROR operation by a `NOP`.
-	![screenshot](lockbit_524.png)
+	![screenshot](images/lockbit_524.png)
 	And export it as always.
 
 ---
@@ -2160,13 +2160,13 @@ CALL FUN_00406844            ; Function called with the weird parameter (0x1ae)
 ```
 .
 		- allocate_data_processheap_antidbg (FUN_00406844):
-		![screenshot](lockbit_525.png)
+		![screenshot](images/lockbit_525.png)
 		At this short function it retrieves a value from `FUN_0040108c`, so before analysing anything we will see what it does.
 			- return_peb_func (FUN_0040108c):
 			It's only a function that returns [`ProcessEnvironmentBlock (PEB)`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm).
-			![screenshot](lockbit_526.png)
+			![screenshot](images/lockbit_526.png)
 			We will rename the function to `return_peb_func`:
-			![screenshot](lockbit_527.png)
+			![screenshot](images/lockbit_527.png)
 		With that being clear, once again we find another anti-debug technique similar to the previous one. It looks at [`PEB`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm) with an offset of `0x18` at the `PVOID ProcessHeap` which, according to [`Microsoft`](https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-getprocessheap) is the default heap of the calling process. Now in comparison to before, it checks the `ForceFlags` of the default heap of the executable instead of the created heap with [`RtlCreateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateheap). It checks the `ForceFlags` because, as we checked earlier at a [`heap structure`](https://www.vergiliusproject.com/kernels/x86/windows-10/22h2/_HEAP) the `0x44` is the `ForceFlags` field where `0x40000000` corresponds to the [`HEAP_VALIDATE_PARAMETERS_ENABLED`](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/enable-heap-parameter-checking) flag. After that it invokes [`RtlAllocateHeap`]([RtlAllocateHeap](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap)) with this format `RtlAllocateHeap(ProcessHeap, HEAP_ZERO_MEMORY, 0x1AE)`, `0x8` is the flag [`HEAP_ZERO_MEMORY`](doxygen.reactos.org/d5/df7/ndk_2rtltypes_8h_source.html#l00128) which, according to [`Microsoft documentation`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap), the allocated memory is initialised to zero, with a specified size to allocate by `param_1`.
 ```assembly
 CALL       return_peb_func                     ; returns PEB on EAX
@@ -2187,12 +2187,12 @@ RET        0x4
 .
 		So the function checks if it's debugged, corrupting the default heap in case it is. After that, it allocates memory in the default heap of the process initialised to zero and an with allocation size specified by `param_1`, returning a pointer to it returned by the function (`EAX`). 
 		The function will be renamed to `allocate_data_processheap_antidbg`:
-		![screenshot](lockbit_528.png)
+		![screenshot](images/lockbit_528.png)
 
 ---
 
 Once again, with the same methodology, we will substitute the `ROR` with a `NOP` to avoid the anti-debug technique.
-![screenshot](lockbit_529.png)
+![screenshot](images/lockbit_529.png)
 And export it as always.
 
 ---
@@ -2272,8 +2272,8 @@ RET        0x8
 .
 	- some_aplib_decompressor_func (FUN_00418c34):
 		This function takes byte per byte of `param_3` doing multiple transformations saving the results of each transformation at `param_4`.
-		![screenshot](lockbit_530.png)
-		![screenshot](lockbit_531.png)
+		![screenshot](images/lockbit_530.png)
+		![screenshot](images/lockbit_531.png)
 		After a long investigation, it is definitely a decompressor. The most similar one is the [`aPLib decompressor`](https://ibsensoftware.com/products_aPLib.html), because of a few aspects:
 			- The secondary allocated data for the compressed data doubles it's size, so there is no transformation, but instead decompression as we get more bytes than we had before the compressed data. Later we will check it with x32dbg.
 			- Bit-level logic, backreferences and variable-length encoding which is common on the [`aPLib decompressor`](https://ibsensoftware.com/products_aPLib.html).
@@ -2344,7 +2344,7 @@ adc    ecx, 0
 ```
 .
 		The use of this decompressor is to load code dynamically on a hidden way, that has small footprint, in order to operate as less suspicious possible. Because of this, we will rename the function to `some_aplib_decompressor_func()`:
-		![screenshot](lockbit_532.png)
+		![screenshot](images/lockbit_532.png)
 	- create_trampoline_to_secondary_alloc (FUN_00417800):
 		This function receives as `param_1` a pointer to secondary allocated heap data, as `param_2` the main heap handle, and as `param_3` [`RtlAllocateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap). It's similar to `load_apis_func` when building a trampoline; instead of doing it to an API address, it does it with a passed parameter, a pointer to a secondary allocated data (which was passed at a specific offset). So it creates a hidden access at the main heap, allocating data there, which points to a trampoline to randomly obfuscated or corrupted, or both, address which is reverted with some instructions, because of the executable heap, to the secondary allocated data (with the offset).
 
@@ -2551,11 +2551,11 @@ RET        0xC
 ```
 .
 		Based on this, the function will be renamed to `create_trampoline_to_secondary_alloc` for more clarity:
-		![screenshot](lockbit_533.png)
+		![screenshot](images/lockbit_533.png)
 	With the functions somewhat more clear, the deobfuscation of bits with the mask `0x30`,  into the allocated data at the default heap of the process creates this region of memory, which at first doesn't seem relevant until the decompressor aPLib decompresses it.
-	![screenshot](lockbit_534.png)
+	![screenshot](images/lockbit_534.png)
 	After that the function `some_aplib_decompressor_func()` decompresses it into the secondary allocated data in the heap passed as parameter, `param_1`.
-	![screenshot](lockbit_535.png)
+	![screenshot](images/lockbit_535.png)
 	Before the first `create_trampoline_to_secondary_alloc()` invoke, at `ESI+0x83` the decompressed data will point at the grey higlighted hexadecimal, which is the common start for a function in assembly.
 ```assembly
 55          PUSH EBP       ; Save old base pointer
@@ -2564,9 +2564,9 @@ RET        0xC
 ```
 .
 	After being invoked, at `DAT_0042519c` will be stored that function to be executed when attempting to invoke `DAT_0042519c`.
-	![screenshot](lockbit_536.png)
+	![screenshot](images/lockbit_536.png)
 	In the second `create_trampoline_to_secondary_alloc` invoke, advances the pointer `+0x41` extra, `ESI+0xc4`. Pointing to another function, highlighted in grey the general function setup:
-	![screenshot](lockbit_537.png)
+	![screenshot](images/lockbit_537.png)
 	On the third `create_trampoline_to_secondary_alloc()` invoke and the last, it advances the pointer `0xd7` extra, `ESI+0x19b`. Pointing also to another function, highlighted in grey the general function setup, which is slightly different.
 ```assembly
 55          PUSH EBP       ; Save old base pointer  
@@ -2574,35 +2574,35 @@ RET        0xC
 56          PUSH ESI       ; Save ESI register  
 ```
 .
-	![screenshot](lockbit_538.png)
+	![screenshot](images/lockbit_538.png)
 	After tracing the movements of the function, we will copy all the decompressed contents into a binary file, `decompressed_payload.bin` with the help of HxD to analyse the code of the decompressed code.
-	![screenshot](lockbit_539.png)
+	![screenshot](images/lockbit_539.png)
 	Now we will import the binary to our project to decompile it. Because it's not a proper executable and only code to be executed, Ghidra will not detect automatically which language it is.
-	![screenshot](lockbit_540.png)
+	![screenshot](images/lockbit_540.png)
 	We will choose x86 of 32 bits, because it is the architecture with which we are working on. There are multiple compilers, but shouldn't matter whichever you choose.
-	![screenshot](lockbit_541.png)
+	![screenshot](images/lockbit_541.png)
 	Analyse it as always.
-	![screenshot](lockbit_542.png)
+	![screenshot](images/lockbit_542.png)
 	With that we will see that the code was decompiled successfully.
-	![screenshot](lockbit_543.png)
+	![screenshot](images/lockbit_543.png)
 	It comes with five functions:
-	![screenshot](lockbit_544.png)
+	![screenshot](images/lockbit_544.png)
 	- FUN_00000000:
 		This function is completely the same as we have seen before to generate a random seed, taking into account if it was a virtual machine because it checked if the register `0x40000000` was present, based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/tlfs/feature-discovery).
-		![screenshot](lockbit_545.png)
+		![screenshot](images/lockbit_545.png)
 	- FUN_0000004d:
 		A helper function that performs a 32-bit multiplication when both `param_2` and `param_4` are zero, or a full 64-bit multiplication when either is non-zero.
-		![screenshot](lockbit_546.png)
+		![screenshot](images/lockbit_546.png)
 	- FUN_00000083:
 		This function is the first pointer stored by `create_trampoline_to_secondary_alloc()` at `0x83` of the decompressed data into `DAT_0042519c`.
-		![screenshot](lockbit_547.png)
+		![screenshot](images/lockbit_547.png)
 		If we look at the code, it performs weird multiplications, `FUN_0000004d`, with `param_1` and `param_2`, both being 64-bit numbers.
 		`iVar1 = param_2.lowpart * 0x4c957f2d + param_2.highpart * 0x5851f42d`
 		`iVar1 += 0x14057b7ef767814f`
 		`result = param_1.lowpart * iVar1.lowpart + param_1.highpart * iVar1.highpart`
-		![screenshot](lockbit_548.png)
+		![screenshot](images/lockbit_548.png)
 		The function seems to retrieve some special value; the global variable `DAT_0042519c` which takes the value of the first invoked `create_trampoline_to_secondary_alloc()` the returned pointer, will be renamed to `weird_decompressed_payload_mult()`.
-		![screenshot](lockbit_549.png)
+		![screenshot](images/lockbit_549.png)
 	- FUN_000000c4:
 		This function is the second pointer stored by `create_trampoline_to_secondary_alloc()` at `0xc4` of the decompressed data into `DAT_00425194`. 
 		It fills `param_1` with 128 bytes of random data, invoking sixteen times the random seed generator, `FUN_00000000`. In the last call, it truncates the high part to 24 bits. Then, it computes an offset using the formula `0x78 * (truncated_seed * 0x8088405 + 1)`,  and stores a copy of the value pointed to by `param_2` at that offset inside `param_1`.
@@ -2674,7 +2674,7 @@ RET 0x8
 ```
 -
 		The function creates a structure of random data occupying 128 bytes at `param_1`, and at a random offset of `param_1` copies `param_2` content there.  The global variable `DAT_00425194` which takes the value of the second invoked `create_trampoline_to_secondary_alloc` the returned pointer, will be renamed to `random_data_128bytes_copyp2`.
-		![screenshot](lockbit_550.png)
+		![screenshot](images/lockbit_550.png)
 .
 	- FUN_0000019b:
 		This function is the third pointer stored by `create_trampoline_to_secondary_alloc` at `0x19b` of the decompressed data into `DAT_00425198`. 
@@ -2784,8 +2784,8 @@ RET 0x8
 ---
 .
 		Once again we will need to substitute the `ROR` with a `NOP` to make the debug correct past that point, by not altering the handle when it's debugged.
-		![screenshot](lockbit_551.png)
-		![screenshot](lockbit_552.png)
+		![screenshot](images/lockbit_551.png)
+		![screenshot](images/lockbit_552.png)
 		Export it as always.
 
 ---
@@ -2807,15 +2807,15 @@ RET        0x4
 ```
 .
 		Because the function only frees data from a heap, we will rename it to `rtl_freeheap_antidbg_func`:
-		![screenshot](lockbit_553.png)
+		![screenshot](images/lockbit_553.png)
 	After revising each function and understanding the functionality we will rename the code to `decompress_obfuscated_code_func`:
-	![screenshot](lockbit_554.png)
+	![screenshot](images/lockbit_554.png)
 Now we will analyse the last function there, which is `FUN_0040b470`.
 - antidbg_rewritedbg_func (FUN_0040b470)
-	![screenshot](lockbit_555.png)
+	![screenshot](images/lockbit_555.png)
 	This function at first sight retrieves a special API with the function `api_hashing_func()`, that if we look at it it returns [`DbgUiRemoteBreakin`](https://doxygen.reactos.org/dd/ddc/dbgui_8c_source.html#l00289) from ntdll.
-	![screenshot](lockbit_556.png)
-	![screenshot](lockbit_557.png)
+	![screenshot](images/lockbit_556.png)
+	![screenshot](images/lockbit_557.png)
 	If we check [`React OS Documentation`](https://doxygen.reactos.org/dd/ddc/dbgui_8c_source.html#l00289), we can see that the function checks if the code is being debugged, and if so, then it puts a breakpoint to the process attached to the process being debugged. This is a more sophisticated anti-debug technique, because it loads an undocumented debug function required to debug which is overwritten to make it not possible to continue debugging. So after retrieving  [`DbgUiRemoteBreakin`](https://doxygen.reactos.org/dd/ddc/dbgui_8c_source.html#l00289) with the function `api_hashing_func`, it uses [`ZwProtectVirtualMemory`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwProtectVirtualMemory.html), which is this function renamed at [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect), to change the protection of [`DbgUiRemoteBreakin`](https://doxygen.reactos.org/dd/ddc/dbgui_8c_source.html#l00289) to [`PAGE_EXECUTE_READWRITE`](https://learn.microsoft.com/en-us/windows/win32/Memory/memory-protection-constants) (`0x40`) to be able to modify the code in order to use [`SystemFunction040`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-rtlencryptmemory), `RtlEncryptMemory`, to encrypt the memory and make debugging not possible.
 ```c
 void FUN_0040b470(void)
@@ -2851,29 +2851,29 @@ void FUN_0040b470(void)
 ---
 .
 	With Ghidra we will patch this as before:
-	![screenshot](lockbit_558.png)
-	![screenshot](lockbit_559.png)
+	![screenshot](images/lockbit_558.png)
+	![screenshot](images/lockbit_559.png)
 	Now export it as always.
 
 ---
 .
 	Based on this functionality the function will be renamed to `antidbg_rewritedbg_func`:
-	![screenshot](lockbit_560.png)
+	![screenshot](images/lockbit_560.png)
 In a nutshell, the whole function starts by retrieving with `api_hashing_func()` the function [`RtlCreateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateheap), creates a heap and returns its handle, and [`RtlAllocateHeap`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlallocateheap) which will be used by the following functions, by searching dynamically for a matching hash, obtained with `XOR`. Then it loads at the memory with `load_apis_func()` using obfuscated hashes to load 305 APIs to reference dynamically, in the code to where their pointer is stored. A function to hide the thread from the debugger, a decompress function to load code dynamically, creating three pointers to three different new functions, and a last function to mess with the debugging and make it not possible. 
 
 Based on this, the function will be renamed to `construct_api_addresses_antidbg`:
-![screenshot](lockbit_561.png)
+![screenshot](images/lockbit_561.png)
 
 ##### Function setup_environment_and_escalate_preexploit (FUN_00419990)
 At this function starts the actual malware escalation and propagation.
-![screenshot](lockbit_562.png)
+![screenshot](images/lockbit_562.png)
 First it executes the function `FUN_00406900()` with which we will start analysing.
 - optimize_process_heap (FUN_00406900)
-	![screenshot](lockbit_563.png)
+	![screenshot](images/lockbit_563.png)
 	The function retrieves a value from `FUN_00401564()`, so we will analyse it to make more clear the logic of this function.
 	- get_OS_version_func (FUN_00401564):
 		This function retrieves a value based on the Windows Operating System type, by retrieving the [`PEB`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm) and looking at the offset `0xa4` that is `ULONG OSMajorVersion` and at the offset `0xa8` that is `ULONG OSMinorVersion`, both being values to get the Windows OS type. The OS type can be seen at this table from [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexa#remarks). Windows 11 is not included, so on a Windows 11 machine at the registry in `Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion` we will be able to see in the keys `CurrentMajorVersionNumber` and `CurrentMinorVersionNumber` that are 10 and 0 respectively, as in Windows 10:
-		![screenshot](lockbit_564.png)
+		![screenshot](images/lockbit_564.png)
 		Then based on the Windows OS type it returns the same type in hexadecimal.
 ```c
 undefined4 FUN_00401564(void)
@@ -2913,7 +2913,7 @@ undefined4 FUN_00401564(void)
 ```
 .
 		Based on the functionality, the function will be renamed to `get_OS_version_func`:
-		![screenshot](lockbit_565.png)
+		![screenshot](images/lockbit_565.png)
 	So with the retrieved function, if the OS is newer than Windows Vista, because of compatibility. There it invokes the [`RtlSetHeapInformation`](https://ntdoc.m417z.com/rtlsetheapinformation) function, which takes the heap of the process, because it retrieves the [`PEB`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm) and takes at the offset `0x18` the `PVOID ProcessHeap`, `0` as the second parameter that is `HeapCompatibilityInformation` allowing heap features, especially with the third parameter `local_8 (2)` that enables low-fragmentation heap (`LFH`), based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapsetinformation), which reduces fragmentation and improves performance mainly.
 ```c
 void FUN_00406900(void)
@@ -2931,10 +2931,10 @@ void FUN_00406900(void)
 ```
 .
 	We will rename the function to `optimize_process_heap` to give it a more meaningful name:
-	![screenshot](lockbit_566.png)
+	![screenshot](images/lockbit_566.png)
 The next executed function is `FUN_00406f48`.
 - prepare_payload_and_config_data_func (FUN_00406f48):
-	![screenshot](lockbit_567.png)
+	![screenshot](images/lockbit_567.png)
 	This function is quite complex, but we will start by analysing the first invoked function, `FUN_00406de8`, which will be necessary for the program logic, that receives a weird payload at `DAT_0042600c`, which if the result is not empty, the content will be decompressed with the function `some_aplib_decompressor_func()` into an allocated buffer at the process heap with the function `allocate_data_processheap_antidbg()`.
 	- decrypt_payload_xor_custom_func (FUN_00406de8):
 		At this function `param_1` is  `DAT_0042600c`, a weird payload, which is copied into the process heap by allocating 0x77f bytes, because it takes `param_1 - 0x4` which is `DAT_00426008`, with the function `allocate_data_processheap_antidbg()`. Then the function `FUN_00401720()` will decrypt the payload at the allocated data.
@@ -3042,33 +3042,33 @@ JMP     LAB_00401740                    ; getnew key from FUN_004017ac and conti
 .
 			- weird_decompressed_payload_mult_func (FUN_004017ac)
 				The function jumps at the dynamically loaded routine from the decompressed payload at `construct_api_addresses_antidbg` in the one that we renamed to `weird_decompressed_payload_mult`.
-				![screenshot](lockbit_568.png)
+				![screenshot](images/lockbit_568.png)
 				To make it clear we will rename it to `weird_decompressed_payload_mult_func`:
-				![screenshot](lockbit_569.png)
+				![screenshot](images/lockbit_569.png)
 			The huge blob of compressed data looks like this; it doesn't fit in the photo because there are 2047 bytes of compressed data.
-			![screenshot](lockbit_570.png)
+			![screenshot](images/lockbit_570.png)
 			So the function decrypts the payload with a multi-stage `XOR` operation in two rounds, so we will rename it to `two_round_xor_decryption_func`:
-			![screenshot](lockbit_571.png)
+			![screenshot](images/lockbit_571.png)
 		So the function ends up decrypting the payload copied at the allocated buffer in the process heap; because of that, we will rename the function to `decrypt_payload_xor_custom_func()`:
-		![screenshot](lockbit_572.png)
+		![screenshot](images/lockbit_572.png)
 	So with the pointer to the allocated decrypted compressed payload from `DAT_0042600c` at the process heap, we create another buffer allocating data at the process with the function `allocate_data_processheap_antidbg()` making the size of the original compressed data, 0x7ff, four times bigger, up to 0x1FFC, passing both buffers to `some_aplib_decompressor_func()`, which will decompress the data from the buffer of compressed data (0x7ff bytes) retrieved from `decrypt_payload_xor_custom_func()` and decompress its contents to the new buffer of 0x1FFC bytes. We will rename the names to make it clearer.
-	![screenshot](lockbit_573.png)
+	![screenshot](images/lockbit_573.png)
 	Now with x32dbg, if we look at the decompressed data, we can see interesting data, mainly because of the Base64 encoded data:
-	![screenshot](lockbit_574.png)
+	![screenshot](images/lockbit_574.png)
 	To see what we need to differentiate from there, if we look further at the code, there are [`memcpy`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memcpy-wmemcpy?view=msvc-170) functions being invoked that take some specific offsets from the decompressed data:
-	![screenshot](lockbit_575.png)
+	![screenshot](images/lockbit_575.png)
 	 - DAT_00424f70, 128 bytes (0 - 0x7f):
 		The first range of data is the next one, highlighted in grey, that will be stored to DAT_00424f70, but because of the size it could be an RSA key. (Later we will see it is used for encryption.)
-		![screenshot](lockbit_576.png)
+		![screenshot](images/lockbit_576.png)
 	- DAT_00425100, 32 bytes (0x80 - 0x9f):
 		The second range of data, highlighted in grey, is empty, so it's zeroing data at DAT_00425100, unknown use for now. (Later we will see the Affiliate ID data.)
-		![screenshot](lockbit_577.png)
+		![screenshot](images/lockbit_577.png)
 	- DAT_00425120, 24 bytes (0xA0 - 0xB7):
 		The third range of data, highlighted in grey, has a `1` set in some bytes, so `DAT_00425120` will have something that could be used for flags. (Later we will see the flags to determine which functionality is executed.)
-		![screenshot](lockbit_578.png)
+		![screenshot](images/lockbit_578.png)
 	There are still more data left, like the Base64 encoded data, so we will continue analysing.
 	After these specific data are imported into some addresses, the offset of `0xb8` is used for the rest of the data and seems to be loading data with the same structure of functions being invoked and advancing the offset at the decompressed data.
-	![screenshot](lockbit_579.png)
+	![screenshot](images/lockbit_579.png)
 	We will analyse the functions `FUN_00401508` and `FUN_004012e4` to understand what does it exactly does.
 	- calculate_base64_decoded_size (FUN_00401508):
 		This function from the input `param_1` reads until it finds a null terminator '/0' and checks the last two bytes if they are '=' or '`==`' because this is typical for Base64 encoded data, which is the padding, subtracting their size from the count of bytes or characters of Base64. In the end, with the amount of bytes minus the padding, multiply it by 3 and divide it by 4, because for every 4 characters of Base64, 3 are generated, obtaining with that the real size of the first Base64 data to import. The Base64 encoding is explained at [`RFC 4648`](https://datatracker.ietf.org/doc/html/rfc4648#page-5) and if we look at the document at the [`base64.h code`](https://cvs.savannah.gnu.org/viewvc/gnulib/gnulib/lib/base64.h?view=markup&content-type=text%2Fvnd.viewcvs-markup&revision=HEAD) we can see how the length is calculated.
@@ -3114,7 +3114,7 @@ RET     0x4
 ```
 .
 		Because the function calculates the size of the decoded Base64 data before the first null terminator, it will be renamed to calculate_base64_decoded_size:
-		![screenshot](lockbit_580.png)
+		![screenshot](images/lockbit_580.png)
 	- base64_decoder_func (FUN_004012e4):
 		This is a base64 decoder implementation, because if we look at the C implementation, [`base64.c`](https://cvs.savannah.gnu.org/viewvc/gnulib/gnulib/lib/base64.c?view=markup&content-type=text%2Fvnd.viewcvs-markup&revision=HEAD) from the [`RFC 4648`](https://datatracker.ietf.org/doc/html/rfc4648#page-5) it creates a table with the same characters at the table `A-Z a-z 0-9 + /`. Also returns the size of the decoded data.
 ```assembly
@@ -3203,11 +3203,11 @@ MOV [EDI+0x1], AH            ; Write decoded byte 2 to param_4
 ```
 .
 		Because it decodes base64 data and returns its decoded size, we will rename the function to `base64_decoder_func`:
-		![screenshot](lockbit_581.png)
+		![screenshot](images/lockbit_581.png)
 	So if we look at the assembly, the offset at the decompressed data is calculated from the offset `0xb8`, adding to it the current pointer position `0x28`, in the instruction `LEA EBX,[EAX + EDI*0x1]`. If we look at x32dbg or manually add it, we can see it points to the Base64 encoded data.
-	![screenshot](lockbit_582.png)
+	![screenshot](images/lockbit_582.png)
 	So the rest of the mysterious data (`0xB8` - `0xDF`, 40, bytes) contains offsets to the next Base64 encoded data with 4 bytes of separation (from the first byte). With that we can start getting the rest of the data stored in the memory of the program, which now for each address (DAT_...) will be storing a 4-byte pointer to an allocated buffer in the process heap for the decoded Base64 data.
-	![screenshot](lockbit_583.png)
+	![screenshot](images/lockbit_583.png)
 	- `DAT_00425138` , 112 bytes (`0xE0` - `0x14F`):
 		At this address we store the pointer to the first decoded base64 data.
 ```assembly
@@ -3229,9 +3229,9 @@ CALL       base64_decoder_func               ; decode until /0
 ```
 .
 		This is the HEX that will be decoded:
-		![screenshot](lockbit_584.png)
+		![screenshot](images/lockbit_584.png)
 		And this is the decoded result:
-		![screenshot](lockbit_585.png)
+		![screenshot](images/lockbit_585.png)
 	- `DAT_0042513c`, 76 bytes (`0x151` - `0x19C`):
 		At this address we store the pointer to the second decoded Base64 data.
 ```assembly
@@ -3257,9 +3257,9 @@ CALL       base64_decoder_func                     ; decode until /0
 ```
 .
 		This is the HEX that will be decoded:
-		![screenshot](lockbit_586.png)
+		![screenshot](images/lockbit_586.png)
 		And this is the decoded result:
-		![screenshot](lockbit_587.png)
+		![screenshot](images/lockbit_587.png)
 	- `DAT_00425140`, 272 bytes (`0x19E` - `0x2AD`):
 		At this address we store the pointer to the third decoded base64 data.
 ```assembly
@@ -3285,9 +3285,9 @@ CALL       base64_decoder_func                     ; decode until /0
 ```
 .
 		This is the HEX that will be decoded:
-		![screenshot](lockbit_588.png)
+		![screenshot](images/lockbit_588.png)
 		And this is the decoded result:
-		![screenshot](lockbit_589.png)
+		![screenshot](images/lockbit_589.png)
 	- `DAT_00425144`, 12 bytes (`0x2AF` - `0x2BA`):
 		At this address we store the pointer to the fourth decoded Base64 data.
 ```assembly
@@ -3313,9 +3313,9 @@ CALL       base64_decoder_func                      ; decode until /0
 ```
 .
 		This is the HEX that will be decoded:
-		![screenshot](lockbit_590.png)
+		![screenshot](images/lockbit_590.png)
 		And this is the decoded result:
-		![screenshot](lockbit_591.png)
+		![screenshot](images/lockbit_591.png)
 	-`DAT_00425148`, 784 bytes (`0x2BC` - `0x5CB`):
 		At this address we store the pointer to the fifth decoded Base64 data.
 ```assembly
@@ -3341,9 +3341,9 @@ CALL       base64_decoder_func                      ; decode until /0
 ```
 .
 		This is the HEX that will be decoded:
-		![screenshot](lockbit_592.png)
+		![screenshot](images/lockbit_592.png)
 		And this is the decoded result, which surprisingly is not a hash but a list of processes that probably will be closed, a blacklist of processes:
-		![screenshot](lockbit_593.png)
+		![screenshot](images/lockbit_593.png)
 		The list of processes is the following one:
 			1. `sql`  
 			2. `oracle`  
@@ -3404,9 +3404,9 @@ CALL       base64_decoder_func                      ; decode until /0
 ```
 .
 		This is the HEX that will be decoded:
-		![screenshot](lockbit_594.png)
+		![screenshot](images/lockbit_594.png)
 		And this is the decoded result, which is also surprisingly not a hash. It contains a list of services that probably will be stopped, a blacklist of services:
-		![screenshot](lockbit_595.png)
+		![screenshot](images/lockbit_595.png)
 		The list of services is the following one:
 			1. `vss`  
 			2. `sql`  
@@ -3474,7 +3474,7 @@ ADD        ESP,0x8                                 ; clean up stack
 ```
 .
 		This is the HEX that will be copied:
-		![screenshot](lockbit_596.png)
+		![screenshot](images/lockbit_596.png)
 		The same content is copied to `DAT_00425154`.
 	- `DAT_00425158`, 496 bytes (`0x863` - `0xA52`):
 		At this address we store the pointer to the seventh decoded Base64 data (the previous one was not decoded).
@@ -3501,9 +3501,9 @@ MOV        [DAT_00425174],EAX               ; leftover data from base64 decode
 ```
 .
 		This is the HEX that will be decoded and decrypted because it contains a ransom note with a placeholder for a `DECRYPTION ID`, to help the attackers identify which decryption key the user needs after the ransom is paid.
-		![screenshot](lockbit_597.png)
+		![screenshot](images/lockbit_597.png)
 		And this is the decoded result, which is encrypted for now:
-		![screenshot](lockbit_598.png)
+		![screenshot](images/lockbit_598.png)
 	After the `DAT_00425158` assignation, there are some interesting steps before concluding the function. It first gets with get_32bytes_decryptionid_func a 32-byte DECRYPTION ID, half of which is part of the RSA key and the other half is a random value. Then with the encrypted decoded ransom note, we decrypt it with the function `two_round_xor_decryption_func()`, and then we create a new buffer of data at the heap of the process to store the ransom note with the placeholder replaced with the `DECRYPTION ID`, using [`sprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170). Then we encrypt it again with the function `two_round_xor_decryption_func()` and free allocated data.
 ```asssembly
 CALL       base64_decoder_func         ; decode until /0
@@ -3622,24 +3622,24 @@ int FUN_00406e8c(void)
 ```
 .
 			The function returns a buffer allocated at the process heap of 17 bytes that contains a random value of 16 bytes plus the null terminator `/0`. We will rename the function to `ptr_to_16bytes_randnumber()`.
-			![screenshot](lockbit_599.png)
+			![screenshot](images/lockbit_599.png)
 		The function returns a random `DECRYPTION ID`, with the first 16 bytes being the ASCII uppercase representation of the HEX of the first 8 bytes of the suspected RSA key plus 16 other bytes that are completely random in each execution. This `DECRYPTION ID` is used for the identification of the machine in order to identify which decryption key the attacker should provide after the payment of the ransom is made. 
 		The function will be renamed to `get_32bytes_decryptionid_func`:
-		![screenshot](lockbit_599_1.png)
+		![screenshot](images/lockbit_599_1.png)
 .
 	With the function `get_32bytes_decryptionid_func()` we obtain the `DECRYPTION ID`:
-	![screenshot](lockbit_600.png)
+	![screenshot](images/lockbit_600.png)
 	After decrypting it with the first function invoke of `two_round_xor_decryption_func()`, we can see that the result is a note to extort the user with a `%s` placeholder for `DECRYPTION ID`.
-	![screenshot](lockbit_601.png)
+	![screenshot](images/lockbit_601.png)
 	With [`sprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) we put the `DECRYPTION ID` at the note to extort the user:
-	![screenshot](lockbit_602.png)
+	![screenshot](images/lockbit_602.png)
 	And after that, with the second function invocation of `two_round_xor_decryption_func()` the content is once again encrypted for later use of it:
-	![screenshot](lockbit_603.png)
+	![screenshot](images/lockbit_603.png)
 	Based on this, the function will be renamed to `prepare_payload_and_config_data_func`:
-	![screenshot](lockbit_604.png)
+	![screenshot](images/lockbit_604.png)
 Then after that it checks if `DAT_00425124` is empty, and it will be, because we still haven't seen any modification and it is empty by default. So it will enter the function `FUN_004080b8()`, which, depending on if it returns `0`, will continue its execution, but if it's distinct, then it will stop the execution of the program with the function [`ExitProcess`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess).
 - whitelist_language_func (FUN_004080b8):
-	![screenshot](lockbit_605.png)
+	![screenshot](images/lockbit_605.png)
 	This function retrieves the installed languages with [`NtQueryInstallUILanguage`](https://ntdoc.m417z.com/ntqueryinstalluilanguage) and the default language that is being used with [`NtQueryDefaultUILanguage`](https://ntdoc.m417z.com/ntquerydefaultuilanguage), checking if it's part of one of the following language codes, because if it is, then LockBit will not be executed. Probably the attackers are from some of these regions, and that's why they're not targeting people from these regions.
 
 | Code   | Language (Locale)                      |
@@ -3664,11 +3664,11 @@ Then after that it checks if `DAT_00425124` is empty, and it will be, because we
 .
 	Codes of the countries were obtained from [`Microsoft Windows Language Code Identifier Documentation`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-lcid/70feba9f-294e-491e-b6eb-56532684c37f), and the page to see to which country the code pertained is with [`Localizely`](https://localizely.com/language-country-codes/).
 	Because the function whitelists the user's default language by not executing the ransomware if the default language is one of the previous ones, we will rename the function to whitelist_language_func():
-	![screenshot](lockbit_606.png)
+	![screenshot](images/lockbit_606.png)
 Now the next executed function is `FUN_0040b4dc()`, and if it returns `0`, then it retrieves the Windows Operating System version with the function `get_OS_version_func()`, and if is newer than Windows Vista, then it executes `FUN_0040b4fc()` with the parameter `0`, that if it returns a value distinct from zero, it will execute `FUN_0040babc()` and terminate the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). If it was Windows Vista or older or the `FUN_0040b4fc()` return value was zero, then it will continue executing the rest of the code.
-![screenshot](lockbit_607.png)
+![screenshot](images/lockbit_607.png)
 	-  get_user_sid_result_func (FUN_0040b4dc):
-	![screenshot](lockbit_608.png)
+	![screenshot](images/lockbit_608.png)
 	This is a simple function that returns if a specific Security Identifier (SID) is enabled on an access token with [`CheckTokenMemebership`](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership). The first parameter that is the handle to the token is passed as NULL, because it will take the impersonation token of the calling thread. The second parameter `DAT_0040b4cc` contains the [`SID structure`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid), with the following values:
 ```c
 typedef struct _SID { 
@@ -3689,7 +3689,7 @@ typedef struct _SID {
 	- `32`: Built-in domain
 	- `544`: Administrator group
 	Based on this, we will rename the function `get_user_sid_result_func`:
-	![screenshot](lockbit_609.png)
+	![screenshot](images/lockbit_609.png)
 `get_user_sid_result_func()` will return a distinct value from `0` if it's true that it's an administrator, but if it's zero, then it doesn't have enough permissions, which is what the malware is seeking, because if it's a normal user, not an administrator, it will continue by looking if the Windows operating system is newer than Windows Vista, retrieved with `get_OS_version_func()`, and will execute the function `FUN_0040b4fc()` with `0` as a parameter.
 
 - is_token_admin_member (FUN_0040b4fc)
@@ -3745,7 +3745,7 @@ undefined4 FUN_0040b4fc(int param_1)
 .
 	Because the function attempts to see if it's part of an administrator group, after iterating over all the groups until it finds an administrator group or after going through all of them and not finding any, ultimately returning if the token is in an administrator group with `1` and with `0` if it isn't. 
 	Because of this, we will rename the function to `is_token_admin_member`:
-	![screenshot](lockbit_610.png)
+	![screenshot](images/lockbit_610.png)
 So if the token is part of an administrator group, it will execute `FUN_0040babc() and terminate the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). Otherwise, it will continue with the rest of the logic.
 
 - bypass_uac_icmluautil_spoof_peb_and_relaunch (FUN_0040babc):
@@ -3840,7 +3840,7 @@ undefined4 FUN_0040164c(void)
 ```
 .
 		Based on this, we will rename the function to `retrieve_process_path_from_peb`:
-		![screenshot](lockbit_611.png)
+		![screenshot](images/lockbit_611.png)
 	- retrieve_process_commandline_from_peb (FUN_00401640):
 		This function retrieves the [`ProcessEnvironmentBlock`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm) with the function `return_peb_func()`, which retrieves specific data at `0x10`, that is the parameter `RTL_USER_PROCESS_PARAMETERS *ProcessParameters` a pointer to a [`RTL_USER_PROCESS_PARAMETERS`](https://www.vergiliusproject.com/kernels/x86/windows-10/22h2/_RTL_USER_PROCESS_PARAMETERS) structure that contains, as the name states, important parameters from the process. If we look at the structure for the offset `0x44` that accesses a specific value at the `struct _UNICODE_STRING CommandLine` that starts at the `0x40` offset, which, looking at the [`_UNICODE_STRING`](https://www.vergiliusproject.com/kernels/x86/windows-10/22h2/_UNICODE_STRING) it's looking for the `WCHAR* Buffer` (`0x40 + 0x04 = 0x44`) that contains the command-line string for our process with the parameters that it was invoked with, so it seems that LockBit will look if it has any argument. This is done this way to avoid standard APIs, like [`GetCommandLineW`](https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew), because it's more likely to trigger alerts by behavioural analysis.
 ```c
@@ -3854,7 +3854,7 @@ undefined4 FUN_00401640(void)
 ```
 .
 		Based on this, we will rename the function to `retrieve_process_commandline_from_peb`:
-		![screenshot](lockbit_612.png)
+		![screenshot](images/lockbit_612.png)
 	- spoof_peb_imagepath_commandline_to_dllhost (FUN_0040b7d0):
 		The function first allocates three memory regions using [`NtAllocateVirtualMemory`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntallocatevirtualmemory), each of `0x1000` bytes (4096), with flag `0x3000` (which is `MEM_COMMIT | MEM_RESERVE`).
 		According to [`VirtualAlloc flags`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc), `MEM_COMMIT` allocates physical memory (RAM or pagefile), while `MEM_RESERVE` just reserves a range of virtual addresses.
@@ -3933,13 +3933,13 @@ void FUN_0040b7d0(void)
 ```
 .
 		We can confirm that it successfully retrieves the System32 path, with a backslash at the end, and deobfuscates the string `dllhost.exe`.
-		![screenshot](lockbit_613.png)
+		![screenshot](images/lockbit_613.png)
 		Then it appends dllhost.exe to the System32 path.
-		![screenshot](lockbit_614.png)
+		![screenshot](images/lockbit_614.png)
 		Then puts the Unicode string complete path to dllhost.exe between quotes at DAT_00425878.
-		![screenshot](lockbit_615.png)
+		![screenshot](images/lockbit_615.png)
 		With Process Hacker, if we look after [`LdrEnumerateLoadedModules`](https://ntdoc.m417z.com/ldrenumerateloadedmodules) execution, we can see that the process is spoofing the command line of `dllhost.exe`.
-		![screenshot](lockbit_616.png)
+		![screenshot](images/lockbit_616.png)
 		- add_backslash_unicodestring_missing (FUN_004016c0)
 			This function takes `param_1` and goes through the whole list character by character (2 bytes each, because they are `WCHAR`) until it finds the backslash `\` or the null terminator `\0`,  in this case it will append the backslash.
 ```assembly
@@ -3965,9 +3965,9 @@ RET        0x4                              ; return
 ```
 .
 			Because the function makes sure that the passed Unicode string ends with a backslash, if not appends it, we will rename the function to `add_backslash_unicodestring_missing`:
-			![screenshot](lockbit_617.png)
+			![screenshot](images/lockbit_617.png)
 		Based on all this, because it spoofs `ImagePathName` and `CommandLine` from **dllhost.exe** at the [`ProcessEnvironmentBlock`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/api/pebteb/peb/index.htm) I will rename the function to `spoof_peb_imagepath_commandline_to_dllhost`:
-		![screenshot](lockbit_618.png)
+		![screenshot](images/lockbit_618.png)
 	- bypass_uac_icmluautil_spoof (FUN_0040b944):
 		This function deobfuscates a large block of data using the previously documented function `decode_n_blocks_w_mask_func`. The first 4 DWORDs correspond to an obfuscated **IID** (Interface ID) for the COM object, and the next 0x22 DWORDs decode into the following [`moniker`](https://learn.microsoft.com/en-us/windows/win32/com/monikers) string:
 		``Elevation:Administrator!new:{3E5FC7F9-9A51-4367-9063-A120244FBEC7}``. This This moniker corresponds to the COM object **`ICMLuaUtil`**, which is known to be exploitable to bypass UAC. It is resolved and instantiated using the function [`CoGetObject`](https://learn.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-cogetobject), passing the moniker, the IID, and bind options (set up with `memset` and size = `0x24`).
@@ -3978,10 +3978,10 @@ RET        0x4                              ; return
 			1. At the key `HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{CLSID>\Elevation}` the value `Enabled` must be set to `1` to be an elevated COM object.
 			2. The CLSID must be included in `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\UAC\COMAutoApprovalList` to have automatic approval by the UAC.
 		We can search this CLSID under `\HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{3E5FC7F9-9A51-4367-9063-A120244FBEC7}\Elevation` to see that it's an elevated object.
-		![screenshot](lockbit_618_1.png)
-		![screenshot](lockbit_618_2.png)
+		![screenshot](images/lockbit_618_1.png)
+		![screenshot](images/lockbit_618_2.png)
 		And at `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\UAC\COMAutoApprovalList` we can see it has automatic approval in UAC:
-		![screenshot](lockbit_618_3.png)
+		![screenshot](images/lockbit_618_3.png)
 ```c
 void FUN_0040b944(undefined4 param_1)
 {
@@ -4046,7 +4046,7 @@ void FUN_0040b944(undefined4 param_1)
 .
 		The attacker tricks the system into thinking the malware is **dllhost.exe**, then uses a well-known **elevation COM moniker** to get a **privileged COM object** (`ICMLuaUtil`), which it can use to **launch elevated processes without UAC prompts**. 
 		Based on this, we will rename the function to `bypass_uac_icmluautil_spoof`:
-		![screenshot](lockbit_619.png)
+		![screenshot](images/lockbit_619.png)
 	- quote_imagepath_and_append_args (FUN_00409740)
 		This function checks if `param_1`, `PEB->ProcessParameters->CommandLine`, the path is stored with quotes. If it's not, then it will copy `param_2`, `PEB->ProcessParameters->ImagePathName`, between quotes into a new buffer at the process heap created with the function allocate_data_processheap_antidbg. Then it will iterate through the `param_1` string until it finds a space, copying what is after the space, which are the arguments. In the end it returns the pointer to the created buffer with the `PEB->ProcessParameters->ImagePathName` quoted with the arguments of `PEB->ProcessParameters->CommandLine`.
 ```c
@@ -4098,35 +4098,35 @@ short * FUN_00409740(short *param_1, short *param_2)
 ```
 .
 		Because the function makes sure to return a buffer with the pathfile at `PEB->ProcessParameters->CommandLine` between quotes with its original arguments we will rename the function to `quote_imagepath_and_append_args`:
-		![screenshot](lockbit_620.png)
+		![screenshot](images/lockbit_620.png)
 	If we execute it, then LockBit will have `PEB->ProcessParameters->ImagePathName` as `C:\Windows\System32\dllhost.exe` and `PEB->ProcessParameters->CommandLine` as `"C:\Windows\System32\dllhost.exe"`:
 	- `PEB->ProcessParameters->ImagePathName`:
-		![screenshot](lockbit_621.png)
+		![screenshot](images/lockbit_621.png)
 	- `PEB->ProcessParameters->CommandLine`:
-		![screenshot](lockbit_622.png)
+		![screenshot](images/lockbit_622.png)
 	And after it executes the `ShellExec` function from the **ICMLuaUtil** interface to relaunch itself with its original command-line arguments, elevating the new process to a higher privilege, because shortly after this, as we commented before, the process is terminated with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess), to let the new version with privileges execute the rest of the function.
-	![screenshot](lockbit_623.png)
+	![screenshot](images/lockbit_623.png)
 	Based on all this, we will rename it to `bypass_uac_icmluautil_spoof_peb_and_relaunch`:
-	![screenshot](lockbit_624.png)
+	![screenshot](images/lockbit_624.png)
 So after it bypasses UAC by spoofing **dllhost.exe** and exploiting the **ICMLuaUtil** interface, it relaunches itself with elevated permissions and terminates the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). In the second execution it will repeat everything until now, but it will not enter to the function `bypass_uac_icmluautil_spoof_peb_and_relaunch()`, as it now has enough privileges, so it will `DAT_00425178` with the result of the function `FUN_00406d40()` that we will analyse now.
-![screenshot](lockbit_625.png)
+![screenshot](images/lockbit_625.png)
 
 ---
 
 Now we will need to patch the executable by skipping the functions `bypass_uac_icmluautil_spoof_peb_and_relaunch()` and [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess) to not relaunch the executable, to avoid infecting our machine and also to continue analysing the data.
 This time we will patch in real time the debugged program, in case we want LockBit to infect our virtual machine to see how the machine looks in the end.
 First, we will need to select both functions in x32dbg:
-![screenshot](lockbit_626.png)
+![screenshot](images/lockbit_626.png)
 Right-click and go to `Binary > Fill with NOPs`, and click `OK` in the next window.
-![screenshot](lockbit_627.png)
-![screenshot](lockbit_628.png)
+![screenshot](images/lockbit_627.png)
+![screenshot](images/lockbit_628.png)
 With this way we can modify the program in real time to our convenience, skipping the bypass and the process termination to see the rest of the function:
-![screenshot](lockbit_629.png)
+![screenshot](images/lockbit_629.png)
 Also, if we want it, we can export the modified program by going to `File > Patch file...`:
-![screenshot](lockbit_630.png)
+![screenshot](images/lockbit_630.png)
 There we will click Patch File and export it to wherever we want:
-![screenshot](lockbit_631.png)
-![screenshot](lockbit_632.png)
+![screenshot](images/lockbit_631.png)
+![screenshot](images/lockbit_632.png)
 Also, we can export the patch from the `Export` option to import the patch wherever we need it without modifying the executable.
 
 ---
@@ -4260,17 +4260,17 @@ RET 0x4
 ```
 .
 		If we look at x32dbg, we can see that the MD5 hash of the suspected RSA key is used further to put values at the placeholders at [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170):
-		![screenshot](lockbit_633.png)
+		![screenshot](images/lockbit_633.png)
 		 The deobfuscated data is `{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X}`, which, based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/format-specification-syntax-printf-and-wprintf-functions?view=msvc-170) is a placeholder for the later [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) invocation:
 			- `%08X`: 8 hexadecimal digits (`DWORD`)
 			- `%04X`: 4 hexadecimal digits (`WORD`)
 			- `%02X`: 2 hexadecimal digits (`BYTE`)
-		![screenshot](lockbit_634.png)
+		![screenshot](images/lockbit_634.png)
 		After invoking the [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) function, it retrieves, based on the format, a custom **GUID**/**UUID**, a global identifier, in a hidden way, by hashing with MD5 the suspected RSA key and using an obfuscated string with placeholders for  [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170).
 		The retrieved **GUID**/**UUID** is `{E6E20B0C-8FEB-C8BF-1272-81D078764C04}`:
-		![screenshot](lockbit_635.png)
+		![screenshot](images/lockbit_635.png)
 		Based on this functionality, we will rename the function to `get_guid_w_rsa_md5hash`:
-		![screenshot](lockbit_636.png)
+		![screenshot](images/lockbit_636.png)
 	- base64_encoder_func (FUN_00401404):
 		This function performs a Base64-like encoding using a hardcoded alphabet stored in `local_48`, which includes the standard 64 characters: `"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"`. The encoding loop reads 3 bytes from the input buffer `param_3`, then splits those 3 bytes into four 6-bit segments using bitmask and shift operations. These segments are used as indices into `local_48` to extract 4 encoded bytes. The result is stored in the output buffer `param_5`. If the input is not a multiple of 3, `'='` padding is added manually at the end. Finally, it null-terminates the result and returns the encoded string length. If we look at the C implementation, [`base64.c`](https://cvs.savannah.gnu.org/viewvc/gnulib/gnulib/lib/base64.c?view=markup&content-type=text%2Fvnd.viewcvs-markup&revision=HEAD) from the [`RFC 4648`](https://datatracker.ietf.org/doc/html/rfc4648#page-5) it creates a table with the same characters as the table.
 ```assembly
@@ -4326,22 +4326,22 @@ RET 0xc
 ```
 .
 		Because the function is a Base64 encoder function, we will rename it to `base64_encoder_func`:
-		![screenshot](lockbit_637.png)
+		![screenshot](images/lockbit_637.png)
 	If we debug it with x32dbg, we can see the following GUID loaded, that we have seen before:
-	![screenshot](lockbit_638.png)
+	![screenshot](images/lockbit_638.png)
 	And after hashing it with MD5 and encoding it with the function `base64_encoder_func()` it will look like this:
-	![screenshot](lockbit_639.png)
+	![screenshot](images/lockbit_639.png)
 	Then, nine bytes further, the encoded MD5 digest of the GUID is truncated by putting a null terminator:
-	![screenshot](lockbit_640.png)
+	![screenshot](images/lockbit_640.png)
 	Which at the end of the function will be normalised until the null terminator, preceded by the initial point at the heap buffer, which results in the next Unicode string `.AFfGdukAp`:
-	![screenshot](lockbit_641.png)
+	![screenshot](images/lockbit_641.png)
 	If we let the virtual machine be infected, making sure we have a snapshot and it is executed offline, we can see that the file extension of the encrypted files is `.AFfGdukAp`, so our suspicion that it could be the custom file extension when encrypting the files is true:
-	![screenshot](lockbit_642.png)
+	![screenshot](images/lockbit_642.png)
 	Don't get used to doing this as it could have any unforeseen exploitation that could harm your PC or environment, even if it's offline or on a virtual machine.
 	Based on this functionality we will rename the function to `get_file_extension_guid_md5_b64`:
-	![screenshot](lockbit_643.png)
+	![screenshot](images/lockbit_643.png)
 If `get_file_extension_guid_md5_b64()` returns a pointer to the buffer with the custom file extension, storing it into `DAT_00425178`, then it will continue the execution with `FUN_0040bb70()`, who will return a value to be stored at `DAT_0042517c`.  Afterwards, the function `FUN_0040b708()` is executed.
-![screenshot](lockbit_644.png)
+![screenshot](images/lockbit_644.png)
 
 - format_readme_filename_and_hash_extension (FUN_0040bb70):
 	This function allocates the first 42 bytes to obtain a buffer at the process. Then it deobfuscates seven blocks of 4 bytes, which is the string `%s.README.txt` that will replace the placeholder with the contents of `DAT_00425178 + 2`, the previous file extension it generated before, but skipping the point at the buffer at the process it created before, by using the function [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170). The hash of the filename `AFfGduKAp.README.txt` is obtained with `custom_hashing_function()`, and stored at `DAT_00425170`, the lower `DWORD` (4 bytes).
@@ -4370,13 +4370,13 @@ hash = custom_hashing_function(extraout_ECX,extraout_EDX,buff_readme,0xffffffff)
 ```
 .
 	We can see that it retrieves from obfuscated data `%s.README.txt` and from the file extension at DAT_00425178 it puts the pointer after the point to ignore it.
-	![screenshot](lockbit_645.png)
+	![screenshot](images/lockbit_645.png)
 	Then after [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) it will replace the placeholder with the file extension, without the point.
-	![screenshot](lockbit_646.png)
+	![screenshot](images/lockbit_646.png)
 	Then at `DAT_00425170`, it will store the lower part, `DWORD`, of the hash result of `AFfGduKAp.README.txt` with the function `custom_hashing_function()` that was used for the API's retrieval:
-	![screenshot](lockbit_647.png)
+	![screenshot](images/lockbit_647.png)
 	Because of this the function will be renamed to `format_readme_filename_and_hash_extension`:
-	![screenshot](lockbit_648.png)
+	![screenshot](images/lockbit_648.png)
 - enable_privileges_list (FUN_0040b708):
 	This function enables a list of specific privileges in the current process by calling [`RtlAdjustPrivilege`](https://ntdoc.m417z.com/rtladjustprivilege) in a loop. It iterates over a hardcoded array of privilege IDs until it reaches a terminating zero value. Each privilege is enabled for the current process (not the current thread), and the output status is stored in a local variable but not used afterward.
 	This will likely give elevated rights to bypass security features, manipulate access tokens, or perform privileged operations without user consent, taking advantage of the already elevated status by the UAC bypass we have seen before.
@@ -4416,10 +4416,10 @@ void FUN_0040b708(void)
 ```
 .
 	Based on the functionality, the function will be renamed to `enable_privileges_list`:
-	![screenshot](lockbit_649.png)
+	![screenshot](images/lockbit_649.png)
 
 So after gaining this set of privileges, it will attempt to fill with data `DAT_0042516c`, which will be determined by the outcome of the function `FUN_0040b674()`. Because if the return value is zero, it will invoke the function `FUN_0040b388()` to fill `DAT_0042516c`, which, if it is empty after its execution, will invoke `get_user_sid_result_func()` to see if it has a user SID and if it doesn't have a user SID, it will attempt to fill DAT_0042516c with the function `FUN_0040ae74()`. Otherwise, if the function `FUN_0040b674()` return value was different from zero, it will attempt it with the function `FUN_0040ac00()`, fill `DAT_0042516c`, and after that, execute the function `FUN_004072b4()`:
-![screenshot](lockbit_650.png)
+![screenshot](images/lockbit_650.png)
 
  - is_running_user_token_as_system (FUN_0040b674):
 	 The function invokes [`NtOpenProcessToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenprocesstoken) which takes the handle of the own process (`0xffffffff`) with the desired access, [`TOKEN_QUERY`](https://learn.microsoft.com/en-us/windows/win32/secauthz/access-rights-for-access-token-objects) (`0x8`), based on [`ReactOS Documentation`](https://doxygen.reactos.org/da/d86/xdk_2setypes_8h_source.html#l00928), and with [`NtQueryInformationToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationtoken) tries to retrieve the [TOKEN_USER structure](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_token_user), according to [`TOKEN_INFORMATION_CLASS`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ne-ntifs-_token_information_class), which will be used to check if the `RID` is `SYSTEM` by checking if the value [`SID_AND_ATTRIBUTES`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid_and_attributes) the `SID`, looking at [`Well-Known SIDs`](https://learn.microsoft.com/en-us/windows/security/identity-protection/access-control/security-identifiers), equals 18 (`0x12`), which is for checking if the authority is of `SYSTEM`.
@@ -4447,7 +4447,7 @@ undefined4 FUN_0040b674(void)
 ```
 .
 	The function checks if the user is running the program as `SYSTEM`, based on that, we will rename the function to `is_running_user_token_as_system`:
-	![screenshot](lockbit_651.png)
+	![screenshot](images/lockbit_651.png)
 - get_explorer_securitydelegation_token (FUN_0040b388):
 	First we analyse the nested functions before making assumptions.
 	The function first retrieves with the function `find_pid_by_hashed_processname()` a `Process ID (PID)`, whose hashed process name matches with the passed hash, deobfuscated using `XOR` with `0x10035fff`. With that PID, if found, which is actually the **explorer.exe**, as seen later. Then it will attempt to retrieve an impersonated token with the function `get_duplicated_impersonated_token_with_pid()`, with the explorer PID, `3` which is [`SecurityDelegation`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-security_impersonation_level) if we look at the [`_SECURITY_IMPERSONATION_LEVEL`](https://www.vergiliusproject.com/kernels/x86/windows-10/22h2/_SECURITY_IMPERSONATION_LEVEL) structure. That means that it can impersonate the client's security context on remote systems. The rest of the arguments are `1` that is the [`TokenType`](https://doxygen.reactos.org/da/d86/xdk_2setypes_8h_source.html#l00960) which is `Primary`, if we look at [`ReactOS Documentation`](https://doxygen.reactos.org/da/d86/xdk_2setypes_8h_source.html#l00960).
@@ -4545,19 +4545,19 @@ void FUN_00406894(undefined4 param_1, undefined4 param_2)
 ```
 .
 			Based on the functionality, we will rename the function to `reallocate_data_processheap_antidbg`:
-			![screenshot](lockbit_652.png)
+			![screenshot](images/lockbit_652.png)
 
 ---
 .
 			Because it will hinder the debugging, we will replace the `ROL` with a `NOP` as we did until now to get rid of this anti-debug technique:
-			![screenshot](lockbit_653.png)
-			![screenshot](lockbit_654.png)
+			![screenshot](images/lockbit_653.png)
+			![screenshot](images/lockbit_654.png)
 			And export it as always.
 
 ---
 .
 		Based on the whole functionality that attempts to find a matching hash of a specific process name, we will rename the function to `find_pid_by_hashed_processname`:
-		![screenshot](lockbit_655.png)
+		![screenshot](images/lockbit_655.png)
 - get_duplicated_impersonated_token_with_pid (FUN_00409880):
 		The function opens a process with [`NtOpenProcess`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-ntopenprocess) using the provided `PID` (`param_1`) to retrieve the process handle and use it to retrieve its primary token by passing the process handle as a parameter to [`NtOpenProcessToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenprocesstoken), and duplicates it with a specified impersonation level (`param_2`), [`_SECURITY_IMPERSONATION_LEVEL`](https://www.vergiliusproject.com/kernels/x86/windows-10/22h2/_SECURITY_IMPERSONATION_LEVEL), and token type (`param_3`, either `Primary` or `Impersonation`). It constructs with that a [`SECURITY_QUALITY_OF_SERVICE`](https://www.vergiliusproject.com/kernels/x64/windows-11/24h2/_SECURITY_QUALITY_OF_SERVICE) structure manually and passes it to [`ZwDuplicateToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicatetoken) to create a usable impersonation token. Finally, with [`ZwClose`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwClose.html), it closes the handles used.
 ```c
@@ -4608,16 +4608,16 @@ undefined4 FUN_00409880(int param_1, undefined4 param_2, undefined4 param_3)
 ```
 .
 		The main objective is to probably obtain a token of an elevated process running on the system in order to impersonate the target process with this elevated token. The function will be renamed to `get_duplicated_impersonated_token_with_pid`:
-		![screenshot](lockbit_656.png)
+		![screenshot](images/lockbit_656.png)
 	To understand better how it works, we will debug it with x32dbg to see which process is attempting to impersonate.
 	If we put a breakpoint at the point that it attempts to store the PID of the matching hash process name, we will see that it's the process explorer.exe, which makes sense as it's an elevated process:
-	![screenshot](lockbit_657.png)
+	![screenshot](images/lockbit_657.png)
 	This can be confirmed if we compare the stored PID with the PID of **explorer.exe** running at that moment with Process Hacker. Which at that moment **explorer.exe** had the Process ID (PID) 5972 (`0x1754`):
-	![screenshot](lockbit_658.png)
-	![screenshot](lockbit_659.png)
+	![screenshot](images/lockbit_658.png)
+	![screenshot](images/lockbit_659.png)
 	Then the function will end up by retrieving the impersonated primary token with [`SecurityDelegation`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-security_impersonation_level) rights, being able to impersonate the client's security context on remote systems. 
 	Based on this, we will rename the function to `get_explorer_securitydelegation_token`:
-	![screenshot](lockbit_660.png)
+	![screenshot](images/lockbit_660.png)
 -  get_svchost_token_w_processinjection_adaptive (FUN_0040ae74):
 	Before doing anything, we analysed the nested functions, which you will see after this one.
 	 The function is responsible for preparing and executing a payload inside another process, but only under specific conditions. It first checks the Windows version with the function `get_OS_version_func()` to ensure it's newer than XP. If so, it looks for a running `svchost.exe` process that has `SeDebugPrivilege` enabled, since this privilege allows manipulating other processes even if access would normally be denied with the function `find_svchost_with_debug_privilege()`.
@@ -4812,14 +4812,14 @@ RET
 ```
 .
 		To see this value, we will first make, after `get_explorer_securitydelegation_token()`, the following `JUMPs` to `NOPs`.
-		![screenshot](lockbit_661.png)
-		![screenshot](lockbit_662.png)
-		![screenshot](lockbit_663.png)
+		![screenshot](images/lockbit_661.png)
+		![screenshot](images/lockbit_662.png)
+		![screenshot](images/lockbit_663.png)
 		There we can clearly see that it's attempting to get the **svchost.exe** proccess ID (`PID`).
-		![screenshot](lockbit_664.png)
+		![screenshot](images/lockbit_664.png)
 		So the function attempts to retrieve svchost.exe exclusively if it has the `SeDebugPrivilege`.
 		Based on this, we will rename the function to `find_svchost_with_debug_privilege`:
-		![screenshot](lockbit_665.png)
+		![screenshot](images/lockbit_665.png)
 	- is_process_wow64 (FUN_0040adbc):
 		Calls [`ZwQueryInformationProcess`](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess) with `ProcessInformationClass = ProcessWow64Information (26)`, [`source`](https://ntdoc.m417z.com/processinfoclass), to determine whether the specified process is running under WOW64 (the x86 emulator that allows Win32-based applications to run on 64-bit Windows). If successful, it sets `*param_2` to `1` if the process **is** WOW64, or `0` otherwise.
 ```c
@@ -4840,9 +4840,9 @@ bool FUN_00406e54(undefined4 param_1, uint *param_2)
 .
 		If we debug it by replacing most of the `JUMPs` with `NOPs`, in order to force entry into this function, the invoked routines don't behave as expected. This could be due to bypassing earlier logic that prepares or initializes required conditions.
 		The result with x32dbg is `1`, as we could expect, because with Detect It Easy we could see that it was an executable of 32 bits, and we are running it on a machine with an architecture of 64 bits, so it will be running under WOW64:
-		![screenshot](lockbit_666.png)
+		![screenshot](images/lockbit_666.png)
 		Based on this, we will rename the function to `is_process_wow64`:
-		![screenshot](lockbit_667.png)
+		![screenshot](images/lockbit_667.png)
 	- inject_payload_and_wait_remote_thread (FUN_0040adbc):
 		The function first allocates a memory region using [`NtAllocateVirtualMemory`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntallocatevirtualmemory) of `0x2cf` bytes in size, with the flag `0x3000` (which is `MEM_COMMIT | MEM_RESERVE`).  
 		According to [`VirtualAlloc flags`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc), `MEM_COMMIT` allocates physical memory (RAM or pagefile), while `MEM_RESERVE` just reserves a range of virtual addresses.
@@ -4883,10 +4883,10 @@ undefined4 FUN_0040adbc(undefined4 param_1, undefined4 param_2, undefined4 param
 ```
 .
 		Based on the functionality, the function will be renamed to `inject_payload_and_wait_remote_thread`:
-		![screenshot](lockbit_668.png)
+		![screenshot](images/lockbit_668.png)
 	So the whole function attempts to inject a payload into svchost.exe with two different payloads, depending on if the process is running on WOW64. Because we are not executing the debugged program in a special environment, most of the instructions will fail, so we cannot see this alternate code flow easily. But this function is the replacement for getting an impersonated token of **explorer.exe**, so it will attempt to retrieve an elevated token of svchost.exe through process injection.
 	Because of this, we will rename the function to `get_svchost_token_w_processinjection_adaptive`:
-	![screenshot](lockbit_669.png)
+	![screenshot](images/lockbit_669.png)
 - get_console_session_user_token (FUN_0040ac00):
 	The function through [`QueryUserToken`](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken) and the session ID, [`INTERNAL_TS_ACTIVE_CONSOLE_ID (0x7FFE02D8)`](https://learn.microsoft.com/en-us/windows/win32/devnotes/getting-the-active-console-session-id), which can be seen at [`ReactOS Documentation`](https://doxygen.reactos.org/d6/d9e/include_2reactos_2wine_2winternl_8h_source.html#l01875), attempts to retrieve a handle to the **primary access token** of the user currently logged into the **physical (console) session**.
 ```c
@@ -4901,14 +4901,14 @@ undefined4 FUN_0040ac00(void)
 ```
 .
 	We will rename the function to `get_console_session_user_token`:
-	![screenshot](lockbit_670.png)
+	![screenshot](images/lockbit_670.png)
 
 - bypass_gui_acl_with_null_dacl (FUN_004072b4):
 	This function attempts to modify the **security descriptors** (ACLs) of the **Window Station** and **Desktop** objects used by the GUI subsystem on Windows. Specifically the **window station** `"WinSta0"` and the desktop `"default"`, which is the default input desktop for the interactive window station (`Winsta0\default`) as can be seen in [`Microsoft Documentation`](https://learn.microsoft.com/en-gb/windows/win32/winstation/window-station-and-desktop-creation). Then it calls the next functions:
 	- [`OpenWindowStationW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-openwindowstationw) to open the window station `WinSta0`:
-		![screenshot](lockbit_671.png)
+		![screenshot](images/lockbit_671.png)
 	- [`NtSetSecurityObject`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetsecurityobject) to set the [`SECURITY_INFORMATION`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/security-information) to [`DACL_SECURITY_INFORMATION`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/security-information#dacl_security_information)(`0x4`) based on [`ReactOS Documentation`](https://doxygen.reactos.org/da/d86/xdk_2setypes_8h_source.html#l00123) and also the [`SECURITY_DESCRIPTOR`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_security_descriptor). As you can see in the image, the [`SECURITY_DESCRIPTOR_CONTROL`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/security-descriptor-control) is `SE_DACL_PRESENT` (`0x4`), which, if the flag is set and the DACL is NULL, the security descriptor allows full access to everyone:
-		![screenshot](lockbit_672.png)
+		![screenshot](images/lockbit_672.png)
 
 | Offset    | Field              | Value        | Description                                                                                     |
 | --------- | ------------------ | ------------ | ----------------------------------------------------------------------------------------------- |
@@ -4922,7 +4922,7 @@ undefined4 FUN_0040ac00(void)
 | 0x10–0x13 | DACL ptr           | `0x00000000` | NULL (not set). Although SE_DACL_PRESENT is set, the pointer is NULL -> full access to everyone |
 .
     - [`OpenDesktopW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-opendesktopw) to open the `"default"` desktop
-        ![screenshot](lockbit_673.png)
+        ![screenshot](images/lockbit_673.png)
     Then it applies the same security descriptor to the desktop as it did with the window station.
 	If both succeed, return `1`, otherwise `0`.
 ```c
@@ -4962,13 +4962,13 @@ undefined4 FUN_004072b4(void) {
 ```
 .
 	Since this function attempts to grant **full access** to **everyone** by applying a **NULL Discretionary Access Control List (DACL)** to the **window station** and **desktop**, which are core components of the graphical user interface (GUI), we will rename the function to `bypass_gui_acl_with_null_dacl`:
-	![screenshot](lockbit_674.png)
+	![screenshot](images/lockbit_674.png)
 So after attempting multiple bypasses and getting elevated permissions from multiple techniques, it continues executing additional logic.
-![screenshot](lockbit_675.png)
+![screenshot](images/lockbit_675.png)
 Now it checks at the address `DAT_00425122` if there is not a zero, which is data that was retrieved at `prepare_payload_and_config_data_func()`, specifically the `DAT_00425120`, which we originally suspected were some kind of flags, as it only had `1` at multiple positions, which with this we can confirm are flags for executing customised code of the malware, because LockBit is Ransomware as a Service (RaaS) that can be customised.
-![screenshot](lockbit_676.png)
+![screenshot](images/lockbit_676.png)
 Then it executes the function `FUN_0040b1ac()`, storing its result to `DAT_00425168`, which, if it's not empty, then it executes `FUN_0040b5b8()` and frees the heap of data previously used with `rtl_freeheap_antidbg_func()` if it's running as a normal user.
-![screenshot](lockbit_677.png)
+![screenshot](images/lockbit_677.png)
 Now we will analyse both functions that we still didn't analyse.
 - store_valid_dc_credential_from_list (FUN_0040b1ac):
 	Before proceeding, the nested functions that have not yet been covered were analysed; their details will follow the explanation of this function. 
@@ -5072,7 +5072,7 @@ undefined4 FUN_00412674(undefined4 param_1)
 ```
 .
 	Because the function just retrieves the Domain Controller Name we will rename it to `get_domain_controller_name_func`:
-	![screenshot](lockbit_678.png)
+	![screenshot](images/lockbit_678.png)
 	- alloc_copy_and_encrypt_with_size_prefix (FUN_00406e18):
 		The function allocates memory using `allocate_data_processheap_antidbg()`, copies `param_2` bytes from `param_1` into the newly allocated buffer, and then applies encryption with `two_round_xor_decryption_func`. The total allocated memory is `param_2 + 4` bytes, where the first 4 bytes store the size (`param_2`) as a prefix. This design allows other parts of the code to keep track of the data size before the actual buffer content. It returns a pointer to the start of the allocated buffer. If allocation fails, it returns `NULL`.
 ```c
@@ -5097,7 +5097,7 @@ int *FUN_00406e18(undefined *param_1, int param_2)
 ```
 .
 		Based on the functionality we discussed, we will rename the function to `alloc_copy_and_encrypt_with_size_prefix`:
-		![screenshot](lockbit_679.png)
+		![screenshot](images/lockbit_679.png)
 	- attempt_dclogon_and_get_token (FUN_0040b17c):
 		This function attempts to authenticate a user using the [`LogonUserW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-logonuserw) API with the interactive logon type (`LOGON32_LOGON_INTERACTIVE`, value `2`). It expects `param_1` to be a pointer to an array of three wide-character strings:
 		- `param_1[0]`: The **username**.
@@ -5116,9 +5116,9 @@ undefined4 FUN_0040b17c(undefined4 *param_1)
 ```
 .
 		Based on this, the function will be renamed to `attempt_dclogon_and_get_token`:
-		![screenshot](lockbit_680.png)
+		![screenshot](images/lockbit_680.png)
 	If we debug it with x32dbg, we will be able to see the set of usernames and passwords after decoding and decrypting the data at `DAT_00425154`.
-	![screenshot](lockbit_680_1.png)
+	![screenshot](images/lockbit_680_1.png)
 	The set of usernames and passwords to be tested are the following:
 		- `ad.lab:Qwerty!`
 		- `Administrator:123QWEqwe!@#`
@@ -5128,7 +5128,7 @@ undefined4 FUN_0040b17c(undefined4 *param_1)
 		- `Administrator:123QWEqwe`
 		- `Administrator:123QWEqweqwe`
 	Based on this, we will rename the function to `store_valid_dc_credential_from_list`:
-	![screenshot](lockbit_681.png)
+	![screenshot](images/lockbit_681.png)
 - check_token_admin_group (FUN_0040b5b8):
 	The function checks whether the provided token (`param_1`) belongs to a privileged user. If no token is provided (`param_1 == 0`), it opens the current process token with [`TOKEN_QUERY`](https://learn.microsoft.com/en-us/windows/win32/secauthz/access-rights-for-access-token-objects) (`0x8`) access, as it can be seen in [`ReactOS Documentation`](https://doxygen.reactos.org/da/d86/xdk_2setypes_8h_source.html#l00927). It then queries the token for group membership information using [`NtQueryInformationToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationtoken) with `TokenGroups` (class 2). It allocates memory for the `TOKEN_GROUPS` structure, retrieves the group list, and iterates over each `SID_AND_ATTRIBUTES`. If it finds an SID (`S-1-5-{domain}-512`) with identifier authority `0x15` (`S-1-5`) and a subauthority ending in `0x200` (which corresponds to the domain administrators), it returns `1`, indicating the token has administrative privileges. Otherwise, it returns `0`.
 ```c
@@ -5176,15 +5176,15 @@ undefined4 FUN_0040b5b8(int param_1)
 ```
 .
 	Based on this, we will rename the function to `check_token_admin_group`:
-	![screenshot](lockbit_682.png)
+	![screenshot](images/lockbit_682.png)
 
 So first, from the list of Active Directory credentials stored at `DAT_00425154`, which was previously retrieved by the function `prepare_payload_and_config_data_func()`, the malware attempts to brute-force a valid login via `store_valid_dc_credential_from_list()`. If a username and password pair is valid, the domain controller name, username, and password are stored (all encrypted), and the associated user token is returned and saved in `DAT_00425168`.
 
 Then, using `check_token_admin_group()`, it verifies whether the token belongs to an administrative group. If it does, the function `get_user_sid_result_func()` is called, checking if the actual process has privileges. If it returns `0`, it means the token does not meet the required privileges (e.g., it's a standard user), so all previously stored credentials are discarded: the memory allocated for the username (`DAT_0042515c`), domain controller (`DAT_00425160`), and password (`DAT_00425164`) is freed, the token is closed with [`ZwClose`](https://docs.rs/ntapi/latest/aarch64-pc-windows-msvc/ntapi/ntzwapi/fn.ZwClose.html), and `DAT_00425168` is reset to `0`.
-![screenshot](lockbit_683.png)
+![screenshot](images/lockbit_683.png)
 
 Then after that it checks at `DAT_00425131` if the flag of LockBit is different from zero to be executed and if the previous DC logon token is not zero, and there it's an actual token. Then it checks with `is_running_user_token_as_system()` if it has enough permissions as `SYSTEM`, and then executes `FUN_004128e0()` which if it returns different from zero then it executes `FUN_004131e8()` and after that terminates the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). Otherwise it continues its execution.
-![screenshot](lockbit_684.png)
+![screenshot](images/lockbit_684.png)
 - has_matching_hashed_argument (FUN_004128e0):
 	This function retrieves the current process's command-line arguments, hashes each argument using a custom hashing function, and compares the result to a hardcoded value (`0x35D31849`). If any of the arguments match the target hash, the function returns `1`; otherwise, it returns `0`. It looks as if Lockbit 3.0 was invoked with a specific argument in order to decide the outcome of the upcoming logic.
 ```c
@@ -5223,7 +5223,7 @@ undefined4 FUN_004128e0(void)
 ```
 .
 	Based on the functionality, we will rename the function to `has_matching_hashed_argument`:
-	![screenshot](lockbit_685.png)
+	![screenshot](images/lockbit_685.png)
 - elevated_reexecution_with_pipe_argument (FUN_004131e8):
 	This function is executed in systems joined to a domain, and also with the flag active from the function `prepare_payload_and_config_data_func()`. It extracts its own executable filename (without extension) by using [`PathFindFileNameW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindfilenamew) and [`PathFindExtensionW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindextensionw), then registers a temporary service using that name. The service logic (`run_service_ipc_pipe_injection()`) creates a named pipe with an obfuscated GUID, waits for a connection, and reads input data from a supposedly created pipe on another stage of the malware execution into `DAT_004259c0`.
 	Then it is used as an **argument in a reconstructed command line** along with the current executable. The function finally calls `spawn_interactive_session_with_pipe_args()`, which builds a full command line: `"lockbit3_0.exe <data_from_pipe>"`, duplicates the current process token, assigns it to the active session, and spawns a new process in the `WinSta0\Default` desktop.
@@ -5277,13 +5277,13 @@ void FUN_004131e8(void)
 }
 ```
 We can see the path retrieved:
-![screenshot](lockbit_686.png)
+![screenshot](images/lockbit_686.png)
 And then the filename is extracted with [`PathFindFileNameW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindfilenamew):
-![screenshot](lockbit_687.png)
+![screenshot](images/lockbit_687.png)
 And then we get the pointer to the executable extension, which is `.exe`, with [`PathFindExtensionW`](https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindextensionw) and null terminate it to only get the filename:
-![screenshot](lockbit_688.png)
+![screenshot](images/lockbit_688.png)
 Based on the functionality, the function will be renamed to `elevated_reexecution_with_pipe_argument`:
-![screenshot](lockbit_689.png)
+![screenshot](images/lockbit_689.png)
 .
 	- run_service_ipc_pipe_injection (FUN_00413168):
 		The function `FUN_00413168` is the main entry point when the malware is executed as a service. It registers a control handler with `RegisterServiceCtrlHandlerW` using a dummy function that ignores stop commands. Then, it sets the service status to `SERVICE_RUNNING` and notifies the system.
@@ -5320,7 +5320,7 @@ void FUN_00413168(void)
 .
 		This service-based entry point enables the malware to execute its payload under the guise of a legitimate Windows service. By silently creating an obfuscated named pipe and injecting it into a privileged process, it establishes a stealthy communication channel while avoiding detection through proper service status reporting. 
 		Based on this,the function will be renamed to `run_service_ipc_pipe_injection`:
-		![screenshot](lockbit_690.png)
+		![screenshot](images/lockbit_690.png)
 			- empty_return_function (FUN_00413160):
 				The function does nothing; it just returns without doing anything.
 ```c
@@ -5331,7 +5331,7 @@ void FUN_00413160(void)
 ```
 .
 				We will rename the function to `empty_return_function`:
-				![screenshot](lockbit_691.png)
+				![screenshot](images/lockbit_691.png)
 			- create_named_pipe_with_guid_and_inject (FUN_00412af8):
 				This function creates a **named pipe** using an obfuscated name derived from the computer name and a domain controller name (previously stored at `DAT_004258f0`). It formats the full UNC path using decrypted strings, generates a unique **MD5-based GUID** from that path continued and finished at `generate_md5_guid_from_ipc_path()`, and constructs the final named pipe path. The pipe is then created with [`CreateNamedPipeW`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew) and, if requested, the function waits for a client to connect with [`ConnectNamedPipe`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-connectnamedpipe) and reads any provided data with [`ReadFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile) from the named pipe into `param_2` (`DAT_004259c0`). If creation is successful and the pipe did not previously exist, its handle is passed to `inject_named_pipe_handle_lsass_or_explorer()` for duplication into a privileged process.
 ```c
@@ -5408,19 +5408,19 @@ undefined4 FUN_00412af8(undefined4 param_1, int param_2, int param_3, int param_
 ```
 .
 				The first deobfuscated string with `decode_n_blocks_w_mask_func()` is `\\\\%s.%s\\`:
-				![screenshot](lockbit_692.png)
+				![screenshot](images/lockbit_692.png)
 				Put the computer name retrieved with [`GetComputerNameW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getcomputernamew) into the placeholder of the deobfuscated string with  [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) and also at the second placeholder is the `DAT_004258f0`, which was stored previously, the domain controller name. In my case, I'm not in a domain, so it's empty, but the string will look like this `\\{COMPUTERNAME}.{DOMAIN_NAME}\`:
-				![screenshot](lockbit_693.png)
+				![screenshot](images/lockbit_693.png)
 				Convert the string to lowercase `\\{computername}.{domain_name}\`:
-				![screenshot](lockbit_694.png)
+				![screenshot](images/lockbit_694.png)
 				Then with the function `generate_md5_guid_from_ipc_path()` gets a unique GUID `{C393595E-5ED5-563A-8404-7420562708CC}`:
-				![screenshot](lockbit_695.png)
+				![screenshot](images/lockbit_695.png)
 				And then deobfuscates a new string with `decode_n_blocks_w_mask_func()` that is `\\.\pipe\%s`:
-				![screenshot](lockbit_696.png)
+				![screenshot](images/lockbit_696.png)
 				And then with  [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) at of the deofuscated string, the pipe, replaces the placeholder with the unique GUID `\\.\pipe\{C393595E-5ED5-563A-8404-7420562708CC}`: 
-				![screenshot](lockbit_697.png)
+				![screenshot](images/lockbit_697.png)
 				Based on the functionality we will rename it to `create_named_pipe_with_guid_and_inject`:
-				![screenshot](lockbit_698.png)
+				![screenshot](images/lockbit_698.png)
 				- generate_md5_guid_from_ipc_path (FUN_00412cc0):
 					The function generates a unique GUID string based on the MD5 hash of the [`Universal Naming Convention (UNC)`](https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#unc-paths) path `\\{computername}.{domain_name}\IPC$`. First, it deobfuscates the format string `%s_IPC$` with the function `decode_n_blocks_w_mask_func()`, replaces the placeholder with the full UNC path passed as parameter, `param_1`, with the function [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170), and then calculates its MD5 digest. Then, it decrypts a second format string in the form of a GUID: `{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}`. Finally, it inserts specific bytes from the MD5 digest into this format and writes the resulting GUID string into `param_2`.
 ```c
@@ -5465,17 +5465,17 @@ void FUN_00412cc0(undefined4 param_1, undefined4 param_2)
 ```
 .
 				Deobfuscate the encoded string with `decode_n_blocks_w_mask_func()` which results in `%s_IPC$`:
-				![screenshot](lockbit_699.png)
+				![screenshot](images/lockbit_699.png)
 				Then in the placeholder it puts `param_1` `\\\\{computername}-.{domain_name}\\` into the deobfuscated string with [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) which results in `\\\\{computername}.{domain_name}\\_IPC$`:
-				![screenshot](lockbit_700.png)
+				![screenshot](images/lockbit_700.png)
 				Get the hash of the previous string with the MD5 functions:
-				![screenshot](lockbit_701.png)
+				![screenshot](images/lockbit_701.png)
 				Now it deobfuscates a bigger chunk of data, which is `{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}`:
-				![screenshot](lockbit_702.png)
+				![screenshot](images/lockbit_702.png)
 				Then from the hash it calculated before, it takes individual bytes from it and puts it at the deobfuscated string placeholders, which in my case results in `{C393595E-5ED5-563A-8404-7420562708CC}` to be stored in `param_2`:
-				![screenshot](lockbit_703.png)
+				![screenshot](images/lockbit_703.png)
 				Based on the functionality, we will rename the function to `generate_md5_guid_from_ipc_path`:
-				![screenshot](lockbit_704.png)
+				![screenshot](images/lockbit_704.png)
 				- inject_named_pipe_handle_lsass_or_explorer (FUN_00412954):
 					This function attempts to **duplicate a named pipe handle** into the high-privileged process **explorer.exe**, or with **lsass.exe** in case it doesn't find it. It begins by enabling the `SeDebugPrivilege` through [`RtlAdjustPrivilege`](https://ntdoc.m417z.com/rtladjustprivilege), which is required to manipulate other processes with elevated privileges. Next, it locates the target process PID by using the hashed name with the function `find_pid_by_hashed_processname()`.
 					Once the target process is identified, the function opens it with [`NtOpenProcess`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-ntopenprocess), requesting [`PROCESS_DUP_HANDLE`](https://doxygen.reactos.org/d2/d3d/include_2xdk_2pstypes_8h_source.html#l00022) access. The main action takes place with [`ZwDuplicateObject`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicateobject), which duplicates the named pipe handle into the target process. This allows the low-privileged process to interact with the named pipe within the high-privileged process, enabling potential privilege escalation or IPC injection. The function returns `1` if the handle is successfully duplicated, or `0` on failure.
@@ -5529,11 +5529,11 @@ int FUN_00412954(undefined4 param_1)
 ```
 .
 					If we debug it, it first attempts to get **explorer.exe** with the function `find_pid_by_hashed_processname()` searching by the hash:
-					![screenshot](lockbit_705.png)
+					![screenshot](images/lockbit_705.png)
 					If it fails, then it tries with **lsass.exe** instead:
-					![screenshot](lockbit_706.png)
+					![screenshot](images/lockbit_706.png)
 					Based on the functionality, we will rename it to `inject_named_pipe_handle_lsass_or_explorer`:
-					![screenshot](lockbit_707.png)
+					![screenshot](images/lockbit_707.png)
 	- spawn_interactive_session_with_pipe_args (FUN_00412f58):
 		This function builds a full command line including the current executable and an additional argument, `DAT_004259c0` that has the content read from the custom named pipe `\\.\pipe\{GUID}`, then duplicates with [`ZwDuplicateToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicatetoken) the current process token, retrieved with [`NtOpenProcessToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenprocesstoken) as a primary token. It assigns that token to the active console session with [`NtSetInformationToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetinformationtoken) by assigning the session ID to the duplicated token, and sets up a proper user environment and desktop (`"WinSta0\Default"`) with [`CreateEnvironmentBlock`](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock). It impersonates the token in the current thread and finally spawns a new process in the active desktop session using [`CreateProcessAsUserW`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw). This allows the malware to launch its payload in the user’s visible session with inherited privileges.
 ```c
@@ -5622,15 +5622,15 @@ void FUN_00412f58(undefined2 *param_1)
 ```
 .
 		If we debug it with x32dbg, we can see how it retrieves the path:
-		![screenshot](lockbit_708.png)
+		![screenshot](images/lockbit_708.png)
 		Then remove the executable filename to get the directory path where the malware is:
-		![screenshot](lockbit_709.png)
+		![screenshot](images/lockbit_709.png)
 		And also puts the filename path between quotes:
-		![screenshot](lockbit_710.png)
+		![screenshot](images/lockbit_710.png)
 		We can see that the obfuscated content is `WinSta0\Default` the default input desktop for the interactive window station, as it can be seen in [`Microsoft Documentation`](https://learn.microsoft.com/en-gb/windows/win32/winstation/window-station-and-desktop-creation):
-		![screenshot](lockbit_711.png)
+		![screenshot](images/lockbit_711.png)
 		Based on the functionality, the function will be renamed to `spawn_interactive_session_with_pipe_args()`:
-		![screenshot](lockbit_712.png)
+		![screenshot](images/lockbit_712.png)
 		- get_active_console_session_id (FUN_004016b8):
 			The function returns the value of `INTERNAL_TS_ACTIVE_CONSOLE_ID (0x7FFE02D8)` which can be seen at [`ReactOS Documentation`](https://doxygen.reactos.org/d6/d9e/include_2reactos_2wine_2winternl_8h_source.html#l01875), which holds the session ID of the active console session.
 ```c
@@ -5641,7 +5641,7 @@ undefined4 FUN_004016b8(void)
 ```
 .
 			The function will be renamed to `get_active_console_session_id`:
-			![screenshot](lockbit_713.png)
+			![screenshot](images/lockbit_713.png)
 		- duplicate_and_apply_impersonation_token_to_thread (FUN_0040b3c0):
 			This function attempts to impersonate a security token (`param_1`) in a specific thread (`param_2`). If `param_1` is null, it treats it as a success and returns `true`. Otherwise, it duplicates the given token as an impersonation token with [`TOKEN_IMPERSONATE`](https://learn.microsoft.com/en-us/windows/win32/secauthz/access-rights-for-access-token-objects) (`0x4`) and [`TOKEN_QUERY`](https://learn.microsoft.com/en-us/windows/win32/secauthz/access-rights-for-access-token-objects) (`0x8`) access, as can be seen in the [`ReactOS Documentation`](https://doxygen.reactos.org/da/d86/xdk_2setypes_8h_source.html#l00927), using [`ZwDuplicateToken`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicatetoken), and assigns it to the thread via [`ZwSetInformationThread`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread) by specifying [`THREADINFOCLASS`](https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/ps/psquery/class.htm) to `ThreadInformationClass`. If both steps succeed, it returns `true`; otherwise, `false`. This makes the current thread run under the security context of another user or process to continue with privilege escalation by token theft.
 ```c
@@ -5685,13 +5685,13 @@ bool FUN_0040b3c0(int param_1, undefined4 param_2)
 ```
 .
 			Based on the functionality, the function will be renamed to `duplicate_and_apply_impersonation_token_to_thread`:
-			![screenshot](lockbit_714.png)
+			![screenshot](images/lockbit_714.png)
 So after analysing the functions, it checked at `DAT_00425131` if the flag of `LockBit` is different from zero, retrieved from `prepare_payload_and_config_data_func()`, to be executed, and if the previous DC logon token is not zero, at `DAT_00425168`, and there it's an actual token. 
 Then with `is_running_user_token_as_system()` if the process is running as `SYSTEM` then it checks with `has_matching_hashed_argument()` if it had a specific argument, which, if it was the case, then with `elevated_reexecution_with_pipe_argument()` reexecutes the process with elevated permissions by duplicating and impersonating tokens, with a new argument retrieved from a custom obfuscated pipeline. And concluded by terminating the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess).
-![screenshot](lockbit_715.png)
+![screenshot](images/lockbit_715.png)
 
 Finally, it executes two last functions that we will continue analysing, where `FUN_0040c3f8()` receives as a parameter `DAT_00425178`, which was the custom extension for the files encryption:
-![screenshot](lockbit_716.png)
+![screenshot](images/lockbit_716.png)
 
 - drop_n_register_custom_icon_for_encrypted_files (FUN_0040c3f8):
 	This function decrypts the embedded payload at DAT_0041ba1c with `decrypt_payload_xor_custom_func`. The decrypted data is then decompressed using `some_aplib_decompressor_func` in the allocated memory pointer returned by `allocate_data_processheap_antidbg`. Once the payload is decompressed (0x3AEE bytes), the function resolves the common application data path (`C:\ProgramData`) by calling `ShGetSpecialFolderPathW` with [`CSIDL_COMMON_APPDATA`](https://learn.microsoft.com/en-us/windows/win32/shell/csidl) based on [`ReactOS Documentation`](https://doxygen.reactos.org/dd/d0b/dll_2win32_2shell32_2wine_2shellpath_8c_source.html#l01466). It ensures a trailing backslash with `add_backslash_unicodestring_missing` and concatenates the extension we got at the function `get_file_extension_guid_md5_b64()` using `wcscat`. After constructing the full path, the string `.ico` is appended manually to generate the output filename. The file is created with [`CreateFileW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew), and the decompressed icon is written with [`WriteFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile). Then, the function creates a registry key under `HKEY_LOCAL_MACHINE` using [`RegCreateKeyExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regcreatekeyexw) with the same file extension as the name used for the icon (`C:\ProgramData\AFfGduKAp`), which will be `HKEY_LOCAL_MACHINE\AFfGduKAp`. It sets the default value, `(Default)`, to (`AFfGduKAp`) of the key to the filename using [`RegSetValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsetvalueexw), which is a common trick to register a file association with an icon handler if we look at [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/shell/how-to-create-icon-handlers). Then to complete it, it will configure the icon shown by the system; it creates a `DefaultIcon` subkey, `HKEY_LOCAL_MACHINE\AFfGduKAp\DefaultIcon` , appending `\DefaultIcon` to the previously created key, and sets its default value, `(Default)`, to the full path of the dropped `.ico` file with another call to [`RegSetValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsetvalueexw).
@@ -5780,19 +5780,19 @@ undefined4 FUN_0040c3f8(int param_1)
 ```
 .
 	The created file is the next one to store the image:
-	![screenshot](lockbit_717.png)
+	![screenshot](images/lockbit_717.png)
 	The decompressed data is huge, `0x3AEE` (15086) bytes, so it doesn't fit in a only one screenshot:
-	![screenshot](lockbit_718.png)
+	![screenshot](images/lockbit_718.png)
 	If we select the `0x3AEE` (15086) bytes and store it to a file like `lockbit_icon.ico`, we will be able to see the icon that is used for the encrypted files:
-	![screenshot](lockbit_719.png)
-	![screenshot](lockbit_720.png)
-	![screenshot](lockbit_721.png)
+	![screenshot](images/lockbit_719.png)
+	![screenshot](images/lockbit_720.png)
+	![screenshot](images/lockbit_721.png)
 	If we put a breakpoint after the function [`WriteFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile), we will see the `AFfGduKAp.ico` at `C:\ProgramData`:
-	![screenshot](lockbit_722.png)
+	![screenshot](images/lockbit_722.png)
 	Because the program that we are debugging doesn't have enough privileges, and because we were skipping the bypass technique, we will let it infect the computer and see what is found at regedit (Registry Editor). Although the registry key is explicitly created under `HKEY_LOCAL_MACHINE`, Windows reflects file association classes in `HKEY_CLASSES_ROOT`, which is a merged view of `HKLM\Software\Classes` and `HKCU\Software\Classes`. This is why the icon handler appears under `HKEY_CLASSES_ROOT` in the Registry Editor. The `HKEY_CLASSES_ROOT (HKCR)` key contains file name extension associations and COM class registration information, as can be seen, and we will find there the `HKEY_CLASSES_ROOT\AFfGduKAp\DefaultIcon` with the default value of the path of the created icon `C:\ProgramData\AFfGduKAp.ico`:
-	![screenshot](lockbit_723.png)
+	![screenshot](images/lockbit_723.png)
 	Based on the functionality of the function, we will rename it to `drop_n_register_custom_icon_for_encrypted_files`:
-	![screenshot](lockbit_724.png)
+	![screenshot](images/lockbit_724.png)
 - initialise_rsa_montgomery_checksum_context (FUN_0040e2b8):
 	This function generates 128 bytes of random data with the function `random_data_128bytes_copyp2_func()` that was loaded dynamically previously and encrypts them using [`SystemFunction040`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-rtlencryptmemory). The encrypted data is copied and decrypted in place using [`SystemFunction041`](https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-rtldecryptmemory). Then, the value `1` is transformed into its Montgomery representation modulo a 1024-bit key at `&DAT_00424f70` (the suspected RSA modulus). A custom checksum is computed on the result and stored globally. The function returns `true` if the checksum is valid.
 	- `DAT_00425080`: Holds the 128 bytes of random data, encrypted and then decrypted.
@@ -5824,17 +5824,17 @@ bool FUN_0040e2b8(void)
 .
 	If we debug it with x32dbg, we will be able to see each value:
 		- `DAT_00424f70`: The RSA modulus looks the same as before.
-			![screenshot](lockbit_725.png)
+			![screenshot](images/lockbit_725.png)
 		- `DAT_00424ff0`: The adler32 checksum.
-			![screenshot](lockbit_726.png)
+			![screenshot](images/lockbit_726.png)
 		- `DAT_00424ff4`: Montgomery representation of `1 mod DAT_00424f70`.
-			![screenshot](lockbit_727.png)
+			![screenshot](images/lockbit_727.png)
 		- `DAT_00425080`: The 128 bytes of random data.
-			![screenshot](lockbit_728.png)
+			![screenshot](images/lockbit_728.png)
 	If we trace this data, we can see it's later being used as part of a critical section, which is usually for the encryption phase:
-	![screenshot](lockbit_729.png)
+	![screenshot](images/lockbit_729.png)
 	Based on this functionality, the function will be renamed to `initialise_rsa_montgomery_checksum_context`:
-	![screenshot](lockbit_730.png)
+	![screenshot](images/lockbit_730.png)
 	- random_data_128bytes_copyp2_func (FUN_004056e8):
 		The function just executes the dynamically loaded code function `random_data_128bytes_copyp2` at the function `decompress_obfuscated_code_func()`:
 ```assembly
@@ -5842,7 +5842,7 @@ JMP   dword ptr [random_data_128bytes_copyp2]
 ```
 .
 		The function will be renamed to `random_data_128bytes_copyp2_func`:
-		![screenshot](lockbit_731.png)
+		![screenshot](images/lockbit_731.png)
 	- copy_p3_bytes_from_p2_to_p1 (FUN_004015c):
 		Copies `param_3` bytes from `param_2` to `param_1` using a simple byte-by-byte loop, equivalent to a basic `memcpy` implementation.
 ```c
@@ -5858,7 +5858,7 @@ void FUN_0040105c(undefined *param_1,undefined *param_2,int param_3)
 ```
 .
 		Based on the functionality, the function will be renamed to `copy_p3_bytes_from_p2_to_p1`:
-		![screenshot](lockbit_732.png)
+		![screenshot](images/lockbit_732.png)
 	- montgomery_transform_one (FUN_004017b4):
 		This function computes the **Montgomery representation of the constant 1 modulo `param_2`**, applying several reduction steps using a custom Montgomery reduction routine. The result is stored in `param_1`.
 ```c
@@ -5897,7 +5897,7 @@ void FUN_004017b4(uint *param_1, uint *param_2)
 ```
 .
 		Based on the functionality, the function will be renamed to `montgomery_transform_one`:
-		![screenshot](lockbit_733.png)
+		![screenshot](images/lockbit_733.png)
 		- modular_exp_w_montgomery_reduction (FUN_00401938):
 			 The function performs a sequence of modular reductions using a custom low-level reduction function (`montgomery_reduction_func`), repeatedly copying intermediate values between buffers. This structure and behaviour are characteristic of **modular exponentiation**, where intermediate results are repeatedly squared and reduced.
 			 According to [`RFC 8017 – RSA Cryptography Specifications Version 2.2`](https://datatracker.ietf.org/doc/html/rfc8017), modular exponentiation is performed by iteratively squaring and reducing the result modulo the RSA modulus. The repeated calls to the Montgomery reduction routine and memory copying in this function suggest a custom implementation of this process, likely optimised for fixed-size operands (e.g., 1024-bit blocks).
@@ -5944,7 +5944,7 @@ void FUN_00401938(uint *param_1,uint *param_2,uint *param_3,uint *param_4)
 ```
 .
 			Based on the functionality, the function will be renamed to `modular_exp_w_montgomery_reduction`:
-			![screenshot](lockbit_734.png)
+			![screenshot](images/lockbit_734.png)
 			- montgomery_reduction_func (FUN_00401a9c):
 				This function performs modular reduction on a large multi-precision integer as part of an RSA cryptographic routine, the modular exponentiation. We can see based on the assembly code, comparing it to the [`Montgomery Reduction (REDC) code from OpenSSL GitHub`](https://github.com/openssl/openssl/blob/master/crypto/bn/bn_mont.c), that the division is done by rotating with carry:
 ```asembly
@@ -6071,7 +6071,7 @@ LAB_00402090:
 ```
 .
 				Based on the functionality, the function will be renamed to `montgomery_reduction_func`:
-				![screenshot](lockbit_735.png)
+				![screenshot](images/lockbit_735.png)
 	- multi_round_custom_adler32_func (FUN_0040e350):
 		The function takes a buffer, `param_1`, and its length, `param_2` (`0x80`), performs three rounds of a **custom Adler-32 checksum**, each seeded with a **byte-swapped version of the previous result**, and returns the final checksum in a dynamically allocated 4-byte memory block. 
 ```c
@@ -6103,7 +6103,7 @@ uint * FUN_0040e350(byte *param_1, uint param_2)
 ```
 .
 		Based on the functionality, the function will be renamed to `multi_round_custom_adler32_func`:
-		![screenshot](lockbit_736.png)
+		![screenshot](images/lockbit_736.png)
 		- custom_adler32_checksum_func (FUN_00401264):
 			This function is a variant of the Adler-32 checksum, used for lightweight data integrity. If we look at the PowerShell GitHub documentation of [`adler32.c`](https://github.com/PowerShell/ZLib/blob/master/adler32.c) the modulo is 65521, exactly the same, and the `MOD` operation is done with that same modulo.
 ```c
@@ -6162,20 +6162,20 @@ uint FUN_00401264(byte *param_1, uint param_2, uint param_3)
 ```
 .
 			The return value is distinct from the original Adler-32 function, so it will be renamed to `custom_adler32_checksum_func`:
-			![screenshot](lockbit_737.png)
+			![screenshot](images/lockbit_737.png)
 So at the end of this huge function is set the default icon, decompressed and deobfuscated from memory in the register for the custom unique extension `AFfGduKAp` with `drop_n_register_custom_icon_for_encrypted_files()`. And then it initialises some cryptographic data needed for the upcoming file encryption of the files with `initialise_rsa_montgomery_checksum_context()`.
-![screenshot](lockbit_738.png)
+![screenshot](images/lockbit_738.png)
 Based on all the functions and the whole functionality that it achieves, the function will be renamed to `setup_environment_and_escalate_preexploit`:
-![screenshot](lockbit_739.png)
+![screenshot](images/lockbit_739.png)
 ##### Function  (FUN_00417458)
 At this function will continue the encryption of the files and the system exploitation, which will be out of scope, as now there is less focus on technique evasion, as it has elevated permissions at this point and hasn't attempted any anti-debug technique since long ago.
 It can be seen in the first executed function when it has no arguments, which will be the first instance:
-![screenshot](lockbit_740.png)
+![screenshot](images/lockbit_740.png)
 - FUN_00409bb0:
 	There, we can observe that a mutex is created, which allows multiple threads to encrypt different files or exploit various networks.:
-![screenshot](lockbit_741.png)
-![screenshot](lockbit_741_1.png)
-![screenshot](lockbit_741_2.png)
+![screenshot](images/lockbit_741.png)
+![screenshot](images/lockbit_741_1.png)
+![screenshot](images/lockbit_741_2.png)
 - FUN_00417034:
 	At this function there are multiple functions, but an interesting one is `FUN_00409c64()`:
 ```c
@@ -6198,11 +6198,11 @@ void FUN_00417034(void)
 .
 	- Thread at address `0x40d88c`:
 		The function first executes `FUN_0040cd04()`, which gathers host information in a JSON format:
-		![screenshot](lockbit_742.png)
+		![screenshot](images/lockbit_742.png)
 		With `FUN_0040cedc()` generates a random string `d1d3590c93d15f8c86dee56990bb7eac`:
-		![screenshot](lockbit_743.png)
+		![screenshot](images/lockbit_743.png)
 		And then deobfuscates with `decode_n_blocks_w_mask_func()` two blocks of encoded data `"%u.%u"`:
-		![screenshot](lockbit_744.png)
+		![screenshot](images/lockbit_744.png)
 		And then it decrypts the payload at `DAT_0041d23c`, which confirms that this function will exfiltrate data to the command and control (C&C) server, which will be needed for the malware to identify this machine after the infection to manage the decryption after the payment:
 ```json
 {
@@ -6213,7 +6213,7 @@ void FUN_00417034(void)
 }
 ```
 .
-		![screenshot](lockbit_745.png)
+		![screenshot](images/lockbit_745.png)
 		After that, with [`sprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170), it will merge all the data to exfiltrate it:
 ```json
 {
@@ -6236,7 +6236,7 @@ void FUN_00417034(void)
 }
 ```
 .
-		![screenshot](lockbit_746.png)
+		![screenshot](images/lockbit_746.png)
 		Then the data will be exfiltrated to the C&C with `FUN_0040cfcc()`.
 		- FUN_0040cd04:
 			Deobfuscates the payload of `DAT_0041ce8a`, which has the next format, which seems to gather data from the user in a JSON format. The hostname, username, operating system, domain, architecture, and language, plus extra data.
@@ -6250,7 +6250,7 @@ void FUN_00417034(void)
 %s
 ```
 .
-			![screenshot](lockbit_747.png)
+			![screenshot](images/lockbit_747.png)
 			- FUN_0040c658:
 				Deobfuscates more payload data from `DAT_0041cf80` and `DAT_0041cffe`.
 				At `DAT_0041cf80` we can see it adds content to the previous JSON that gathered data from the user by adding the name of the disks, disk size, and the free size.
@@ -6262,7 +6262,7 @@ void FUN_00417034(void)
 }
 ```
 .
-				![screenshot](lockbit_748.png)
+				![screenshot](images/lockbit_748.png)
 				At `DAT_0041cffe` it also deobfuscates more data, which will be the data container of the previous deobfuscated JSON object data.
 ```JSON
 "disks_info":[
@@ -6270,10 +6270,10 @@ void FUN_00417034(void)
 ]
 ```
 .
-				![screenshot](lockbit_749.png)
+				![screenshot](images/lockbit_749.png)
 			- FUN_0040c928:
 				At this function, it deobfuscates more data of registry keys and values. If we manually set the `EIP`, it will fail, as we are forcing the program to work on a different logic flow, but if we manually deobfuscate the code, we can see the subkey in the registry it attempts to enter is [`Control Panel/International`](https://renenyffenegger.ch/notes/Windows/registry/tree/HKEY_CURRENT_USER/Control-Panel/International/index)
-				![screenshot](lockbit_750.png)
+				![screenshot](images/lockbit_750.png)
 				Then it opens the key at [`HKEY_USERS`](https://doxygen.reactos.org/d0/d77/winreg_8h_source.html#l00010)(`0x80000003`), specifically at `HKEY_USERS/Control Panel/International` with [`RegCreateKeyExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regcreatekeyexw).
 ```c
 // 0x80000003 --> HKEY_USERS
@@ -6281,14 +6281,14 @@ h = (*RegCreateKeyExW)(0x80000003, local_264, 0, 0, 0, 0x20119, 0, &local_c, 0);
 ```
 .
 				The next value that it deobfuscates is `"LocaleName"`, which is a value that will be retrieved from `HKEY_USERS/Control Panel/International`, which contains the local region, and gets its value with [`RegQueryValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexw):
-				![screenshot](lockbit_751.png)
+				![screenshot](images/lockbit_751.png)
 ```c
 // local_24 = HKEY_USERS/Control Panel/International -> LocaleName
 iVar1 = (*RegQueryValueExW)(local_c,local_5c,0,&local_10,local_24,&local_14);
 ```
 .
 				Then if the previous `LocaleName` didn't exist, it tries with `sLanguage`.
-				![screenshot](lockbit_752.png)
+				![screenshot](images/lockbit_752.png)
 			- FUN_0040cafc:
 				 [`NetGetJoinInformation`](https://learn.microsoft.com/en-us/windows/win32/api/lmjoin/nf-lmjoin-netgetjoininformation) is used to obtain information about whether a machine is joined to a domain or a workgroup.
 			- FUN_0040cb20:
@@ -6298,12 +6298,12 @@ iVar1 = (*RegQueryValueExW)(local_c,local_5c,0,&local_10,local_24,&local_14);
 h = (*RegCreateKeyExW)(0x80000002,local_70,0,0,0,0x20119,0,local_70+0x19,0);
 ```
 .
-				![screenshot](lockbit_753.png)
+				![screenshot](images/lockbit_753.png)
 				Then with [`RegQueryValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexw) obtains the value of the next deobfuscated data, which is `"ProductName":
-				![screenshot](lockbit_754.png)
+				![screenshot](images/lockbit_754.png)
 			After all the functions, it retrieves data of the host in a JSON format, as can be seen in x32dbg:
-			![screenshot](lockbit_755.png)
-			![screenshot](lockbit_756.png)
+			![screenshot](images/lockbit_755.png)
+			![screenshot](images/lockbit_756.png)
 ```json
 {
   "host_hostname": "DESKTOP-EBNIISE",
@@ -6324,28 +6324,28 @@ h = (*RegCreateKeyExW)(0x80000002,local_70,0,0,0,0x20119,0,local_70+0x19,0);
 .
 		- FUN_0040cfcc:
 			The function encodes in Base64 with `base64_encoder_func()` the data to be exfiltrated, which is `S9R5WLgse=sy3dCbF&8BHb7n=K7YFpD93JTR&IMz=FZTdPf4feFsjlDKi0jSe&WCdwX=LlfoOxzIik3kUFpEkjqj2oyHXBZkJsAYM6Bbo6oSh5wFEhnx5tsJOaMKkvkniXDdbXvzb3NDQ6ZmmbXIMdmWM5yDhIvjvP7NWXXUa8D5Spb3FovnYpStP`:
-			![screenshot](lockbit_757.png)
+			![screenshot](images/lockbit_757.png)
 			A random long string;
-			![screenshot](lockbit_758.png)
+			![screenshot](images/lockbit_758.png)
 			Another encoded Base64 data: 
-			![screenshot](lockbit_759.png)
+			![screenshot](images/lockbit_759.png)
 			Then it decrypts `"Gecko/20100101"`, which is the user agent that indicates is based in Gecko, based on [`Mozilla Documentation`](https://developer.mozilla.org/es/docs/Web/HTTP/Reference/Headers/User-Agent):
-			![screenshot](lockbit_760.png)
+			![screenshot](images/lockbit_760.png)
 			Then deobfuscates `"POST"`, which confirms that it is going to send a post of the data gathered encoded in Base64 to the C&C server:
-			![screenshot](lockbit_761.png)
+			![screenshot](images/lockbit_761.png)
 			Communication between the C&C server and host is done with the functions  [`InternetConnectW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetconnectw), [`HttpOpenRequestW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-httpopenrequestw), [`InternetQueryOptionW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetqueryoptionw), [`InternetSetOptionW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetsetoptionw), [`HttpSendRequestW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-httpsendrequestw),  [`InternetCloseHandle`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetclosehandle), [`HttpQueryInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-httpqueryinfow), [`InternetQueryDataAvailable`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetquerydataavailable), and [`InternetReadFile`](https://learn.microsoft.com/en-us/windows/win32/api/wininet/nf-wininet-internetreadfile).
 			IP is supposed to be contained at `DAT_00425150`, which was retrieved at `prepare_payload_and_config_data_func()`, and it's empty in this LockBit 3.0 sample, so in our case it will not exfiltrate data to a C&C server. This technique ([`T1567`](https://attack.mitre.org/versions/v12/techniques/T1567/)) is documented in the MITRE ATT&CK Framework.
 	- FUN_00409c64:
 		There the malware deobfuscates multiple data, starting with a parameter argument for the malware `"-psex"`:
-		![screenshot](lockbit_762.png)
+		![screenshot](images/lockbit_762.png)
 		There the malware deobfuscates another argument, which is `"-pass"`:
-		![screenshot](lockbit_763.png)
+		![screenshot](images/lockbit_763.png)
 		Then it deobfuscates a string to create a pipe `\\.\pipe\%s`:
-		![screenshot](lockbit_764.png)
+		![screenshot](images/lockbit_764.png)
 		This function creates the pipe to transfer data.
 	- FUN_00407ca4:
 		There, the malware stops and deletes blacklisted services; first, it starts by retrieving all the running services with [`EnumServicesStatusExW`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw). 
-		![screenshot](lockbit_765.png)
+		![screenshot](images/lockbit_765.png)
 		Then it checks with each one with `FUN_00407dfc()`, if any service name matches with the list of services at `DAT_0042514c`, which was retrieved at `prepare_payload_and_config_data_func()`, to stop these services:
 			1. `vss`  
 			2. `sql`  
@@ -6364,7 +6364,7 @@ h = (*RegCreateKeyExW)(0x80000002,local_70,0,0,0,0x20119,0,local_70+0x19,0);
 		 And for each service running `FUN_0040dc60()` will terminate the process by using [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess), and after that the service will be deleted with [`DeleteService`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-deleteservice). This technique ([`T1489`](https://attack.mitre.org/versions/v12/techniques/T1489/)) is documented in the MITRE ATT&CK Framework.
 	- Thread FUN_00407e58:
 		There the malware stops the execution of blacklisted processes, starting first by retrieving all the running processes with [`NtQuerySystemInformation`](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation) with `SYSTEM_INFORMATION_CLASS SystemProcessInformation`, retrieving a huge process structure for each running process.
-		![screenshot](lockbit_766.png)
+		![screenshot](images/lockbit_766.png)
 		Then it checks with each one with `FUN_00407f50()`, if any process name matches with the list of processes at `DAT_00425148` which was retrieved at `prepare_payload_and_config_data_func()`, to stop these processes:
 			1. `sql`  
 			2. `oracle`  
@@ -6403,10 +6403,10 @@ h = (*RegCreateKeyExW)(0x80000002,local_70,0,0,0,0x20119,0,local_70+0x19,0);
 		And for each running matching process, it will be terminated with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). This technique ([`T1489`](https://attack.mitre.org/versions/v12/techniques/T1489/)) is documented in the MITRE ATT&CK Framework.
 	- Thread FUN_0040782a:
 		At this function is deobfuscated multiple strings with `decode_n_blocks_w_mask_func()`:
-		![screenshot](lockbit_767.png)
+		![screenshot](images/lockbit_767.png)
 		LockBit 3.0 deletes [`volume shadow copies`](https://learn.microsoft.com/en-us/windows-server/storage/file-server/volume-shadow-copy-service) from disk using WMI. It performs a [CoCreateInstance](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance) call to obtain [`WbemAdministrativeLocator`](https://strontic.github.io/xcyclopedia/library/clsid_CB8555CC-9128-11D1-AD9B-00C04FD8FDFF.html) and [`WBEM Call Context`](https://strontic.github.io/xcyclopedia/library/clsid_674B6698-EE92-11D0-AD71-00C04FD8FDFF.html), connects to the [`ROOT\CIMV2`](https://learn.microsoft.com/en-us/windows/win32/winrm/windows-remote-management-and-wmi#constructing-the-uri-prefix-for-wmi-classes) namespace via `ConnectServer`, based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/wmisdk/example-creating-a-wmi-application), and executes a WQL query (`ExecQuery`) like `SELECT * FROM Win32_ShadowCopy`. For each result, it extracts the `ID` property and deletes the shadow copy via `DeleteInstance`. These values were extracted with [`MagNumDB`](https://www.magnumdb.com). Also, these objects are documented at [`WbemCli.h`](https://github.com/tpn/winsdk-10/blob/master/Include/10.0.10240.0/um/WbemCli.h) where we can see the IID and the offsets to see which functions they are accessing. This technique removes local backups, hindering system recovery. This technique ([`T1490`](https://attack.mitre.org/versions/v12/techniques/T1490/)) is documented in the MITRE ATT&CK Framework.
-		![screenshot](lockbit_767_1.png)
-		![screenshot](lockbit_767_2.png)
+		![screenshot](images/lockbit_767_1.png)
+		![screenshot](images/lockbit_767_2.png)
 		
 ```c
 void FUN_0040782a(void) {
@@ -6480,7 +6480,7 @@ void FUN_0040782a(void) {
 		This function opens `FUN_004091c8()`, which deletes logs.
 		- FUN_004091c8:
 			The malware recursively enumerates subkeys under `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\EventLog\` and `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Channels`, opening each associated log via [`OpenEventLogW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-openeventlogw) and clearing it using [`ClearEventLogW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-cleareventlogw). This technique removes local backups, hindering system recovery. This technique ([`T1485`](https://attack.mitre.org/versions/v12/techniques/T1485/))  is documented in the MITRE ATT&CK Framework.
-		![screenshot](lockbit_768.png)
+		![screenshot](images/lockbit_768.png)
 ```c
 void FUN_004091c8(void)
 {
@@ -6524,10 +6524,10 @@ void FUN_004091c8(void)
 	- FUN_00416fa0:
 		- FUN_00413954:
 			At this function it takes DAT_00424f70, which had the RSA key, and with [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) takes the first 8 bytes of the RSA key and stores its representation as `WCHAR` to connect to the AD domain by generating the LDAP display name for the Group Policy Object (GPO).
-			![screenshot](lockbit_769.png)
+			![screenshot](images/lockbit_769.png)
 		- FUN_004139c4:
 			The function deobfuscates multiple data, then queries Active Directory via [`ADSI`](https://learn.microsoft.com/en-us/windows/win32/adsi/active-directory-service-interfaces-adsi). It connects to [`LDAP://rootDSE`](https://learn.microsoft.com/en-us/windows/win32/adschema/rootdse), retrieves the domain's `defaultNamingContext`, enumerates Group Policy Objects (GPOs) under `CN=Policies,CN=System,<domain>`, and searches for one with a matching `displayName`. If found and `param_2` is non-zero, it retrieves its `distinguishedName`, and it checks if the custom GPO was created. We can see the offset at [`Iads.h`](https://github.com/tpn/winsdk-10/blob/master/Include/10.0.10240.0/um/Iads.h).
-			![screenshot](lockbit_770.png)
+			![screenshot](images/lockbit_770.png)
 ```c
 undefined4 FUN_004139c4(undefined4 param_1,int param_2)
 {
@@ -6584,7 +6584,7 @@ undefined4 FUN_004139c4(undefined4 param_1,int param_2)
 .
 		- FUN_00416490:
 			The function starts by getting the domain controller name with `get_domain_controller_name_func()`. Then it deobfuscates data that represents the IID and CLSID of [`IGroupPolicyObject`](https://strontic.github.io/xcyclopedia/library/clsid_EA502722-A23D-11D1-A7D3-0000F87571E3.html).
-			![screenshot](lockbit_771.png)
+			![screenshot](images/lockbit_771.png)
 ```c
 undefined4 FUN_00416490(short *param_1)
 
@@ -6632,7 +6632,7 @@ undefined4 FUN_00416490(short *param_1)
 			- FUN_00416124:
 				The function first deobfuscates the Active Directory path by formatting the string `LDAP://%s/DC=%s,DC=%s`. The string is used as the AD domain name when [`IGroupPolicyObject::New`](https://learn.microsoft.com/en-us/windows/win32/api/gpedit/nf-gpedit-igrouppolicyobject-new) is called to create the GPO, and then it calls [`IGroupPolicyObject::GetName`](https://learn.microsoft.com/en-us/windows/win32/api/gpedit/nf-gpedit-igrouppolicyobject-getname) to retrieve the GUID corresponding to the created GPO.
 				Then it deobfuscates the Active Directory path and formats it `LDAP://DC=%s,DC=%s`, and also deobfuscates the GPO path and formats it `LDAP://CN=%s,CN=Policies,CN=System,DC=%s,DC=%s`, and finally the Active Directory path and the GPO path are used to call [`CreateGPOLink`](https://learn.microsoft.com/en-us/windows/win32/api/gpedit/nf-gpedit-creategpolink) to connect the GPO to the specified Active Directory domain.
-				  ![screenshot](lockbit_772.png)
+				  ![screenshot](images/lockbit_772.png)
 ```c
 void FUN_00416124(int *param_1,undefined4 param_2,undefined4 param_3,int *param_4)
 {
@@ -6791,7 +6791,7 @@ undefined4 FUN_00414c60(int *param_1) // param_1 = IGroupPolicyObject
 .
 			- FUN_00415a84:
 				At this function it sets group policy at `<GPO GUID>\MACHINE\Preferences\NetworkShares\NetworkShares.xml` and then decrypts and decompresses the data at `DAT_00422974`, which defines a network share for each drive on the network hosts, once the domain controller pushes it out, to make LockBit able to also encrypt all the hosts drives on the network.
-				![screenshot](lockbit_773.png)
+				![screenshot](images/lockbit_773.png)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <NetworkShareSettings clsid="{520870D8-A6E7-47e8-A8D8-E6A4E76EAEC2}">
@@ -6924,7 +6924,7 @@ undefined4 FUN_00415a84(int *param_1)
 .
 			- FUN_004157b4:
 				At this function it sets group policy at `<GPO GUID>\MACHINE\Registry.pol` by putting the decrypted and decompressed data at `DAT_00422689`, the following registry configurations that disable Windows Defender features such as web protection, anti-spyware, real-time protection, submitting samples to Microsoft servers, and the firewall on all network hosts.
-				![screenshot](lockbit_774.png)
+				![screenshot](images/lockbit_774.png)
 ```
 PReg\x01
 [SOFTWARE\Policies\Microsoft\Windows\System;GroupPolicyRefreshTimeDC;\x04;\x04;\x01]
@@ -6943,7 +6943,7 @@ PReg\x01
 ```
 .
 				And finally decrypts and decompresses the data at `DAT_00422810`, and puts it at `<GPO GUID>\MACHINE\comment.cmtx` to use it altogether with the `Registry.pol` change:
-				![screenshot](lockbit_775.png)
+				![screenshot](images/lockbit_775.png)
 ```xml
 <?xml version='1.0' encoding='utf-8'?>
 <policyComments xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -7011,7 +7011,7 @@ undefined4 FUN_004157b4(int *param_1)
 .
 			- FUN_00414e50:
 				At this function it sets group policy at `<GPO GUID>\MACHINE\Preferences\Services\Services.xml` and then decrypts and decompresses the data at `DAT_0042208a`, which will add policies to stop and disable certain services on the AD hosts.
-				![screenshot](lockbit_776.png)
+				![screenshot](images/lockbit_776.png)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <NTServices clsid="{2CFB484A-4E96-4b5d-A0B6-093D2F91E6AE}">
@@ -7147,7 +7147,7 @@ undefined4 FUN_00414e50(int *param_1)
 			- FUN_004150e0:
 				At this function first it will try to self-propagate to the domain controller [`sysvol`](https://learn.microsoft.com/en-us/troubleshoot/windows-server/group-policy/rebuild-sysvol-tree-and-content-in-a-domain) folder, which is a common directory for all public Active Directory files, making it accessible to all the hosts on the network domain, formatting the deobfuscated string `\\\\%s\\sysvol\\%\\scripts\\` into `\\\\<Domain Name>\\sysvol\<Domain Name>\\scripts\\<path_to_lockbit>`.
 				Then it sets group policy at `<GPO GUID>\MACHINE\Preferences\Files\Files.xml` and then decrypts and decompresses the data at `DAT_004222c3`, which will make the LockBit copy in [`sysvol`](https://learn.microsoft.com/en-us/troubleshoot/windows-server/group-policy/rebuild-sysvol-tree-and-content-in-a-domain) to be copied from sysvol into the deobfuscated directory `%TempDir%` on every network host.
-				![screenshot](lockbit_777.png)
+				![screenshot](images/lockbit_777.png)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <Files clsid="{215B2E53-57CE-475c-80FE-9EEC14635851}">
@@ -7158,7 +7158,7 @@ undefined4 FUN_00414e50(int *param_1)
 ```
 .
 				Then it sets group policy at `<GPO GUID>\MACHINE\Preferences\Files\Files.xml` and then decrypts and decompresses the data at `DAT_004222c3`, which contains a task to execute the LockBit copy in `%TempDir%` to be executed with the highest privilege available automatically when this task is detected.
-				![screenshot](lockbit_778.png)
+				![screenshot](images/lockbit_778.png)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <ScheduledTasks clsid="{CC63F200-7309-4ba0-B154-A71CD118DBCC}">
@@ -7374,15 +7374,15 @@ LAB_0041562b:
 .
 		- FUN_004146a8:
 			In this function it will force [`gpudpate`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/gpupdate) on all the hosts at the active directory with a PowerShell command that is decrypted with `decrypt_payload_xor_custom_func()` from `DAT_00421f72`.
-			![screenshot](lockbit_779.png)
+			![screenshot](images/lockbit_779.png)
 ```powershell
 powershell Get-ADComputer -filter * -Searchbase '%s' | ForEach-Object { Invoke-GPUpdate -computer $_.name -force -RandomDelayInMinutes 0 }
 ```
 .
 			Then it's deobfuscated [`Active Directory Service Interfaces (IADs)`](https://learn.microsoft.com/en-us/windows/win32/adsi/active-directory-service-interfaces-adsi) IID `{FD8256D0-FD15-11CE-ABC4-02608C9E7553}` and also [`LDAP://rootDSE`](https://learn.microsoft.com/en-us/windows/win32/adschema/rootdse), getting the IAD object to it with [`ADSOpenObject`](https://learn.microsoft.com/en-us/windows/win32/api/adshlp/nf-adshlp-adsopenobject).  
-			![screenshot](lockbit_780.png)
+			![screenshot](images/lockbit_780.png)
 			Then it deobfuscates `defaultNamingContext`, and with [`IADs::Get`](https://learn.microsoft.com/en-us/windows/win32/api/iads/nf-iads-iads-get) it returns the name of the Active Directory domain.
-			![screenshot](lockbit_781.png)
+			![screenshot](images/lockbit_781.png)
 			Then with [`_swprintf`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/sprintf-sprintf-l-swprintf-swprintf-l-swprintf-l?view=msvc-170) formats the PowerShell command by putting at `-SearchBase` the Active Directory domain name.
 			And finally, with [`CreateProcessW`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw), it executes the PowerShell with that command to force the GPO update on all the hosts in the active directory.
 ```c
@@ -7431,14 +7431,14 @@ void FUN_004146a8(void)
 .
 	- FUN_00411934
 		First it decrypts with `decrypt_payload_xor_custom_func()` the data at `DAT_00420ab4`, `SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`, which is a registry to automatically run a program once, which will be opened with a key to it with [`RegCreateKeyExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regcreatekeyexw) having a handle to the key `HKEY_LOCAL_MACHHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`.
-		![screenshot](lockbit_782.png)
+		![screenshot](images/lockbit_782.png)
 		Then it uses the function `FUN_004118b8()` to generate a random string by using `generate_randnumber_lcg_func()`, which uses it to evade signatures and will be used to create a value at the previous key.
-		![screenshot](lockbit_783.png)
+		![screenshot](images/lockbit_783.png)
 		Then it retrieves the path to the LockBit executable with `retrieve_process_path_from_peb()` and with `FUN_00406934()` puts it at an allocated buffer.
-		![screenshot](lockbit_784.png)
+		![screenshot](images/lockbit_784.png)
 		Also there are extra custom arguments for the executable `"-wall"`, and `"-pass %s"` which has a placeholder in order to specify a password.
-		![screenshot](lockbit_785.png)
-		![screenshot](lockbit_786.png)
+		![screenshot](images/lockbit_785.png)
+		![screenshot](images/lockbit_786.png)
 		Finally, [`RegSetValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsetvalueexw) sets the randomly generated string as the value name and as the data, the path to the executable, which will make the malware have a persistence mechanism to make sure through the registry to continue with its execution; this technique  ([`T1547.001`](https://attack.mitre.org/techniques/T1547/001/)) is documented in the MITRE ATT&CK Framework.
 ```c
 undefined4 FUN_00411934(void)
@@ -7487,32 +7487,32 @@ undefined4 FUN_00411934(void)
 
 ### LockBit 3.0 Malware Behaviour Analysis
 If we execute the malware, we can see that files get encrypted with the custom extension `.AFfGdukAp` we have seen earlier.
-![screenshot](lockbit_787.png)
+![screenshot](images/lockbit_787.png)
 Also at the desktop there appears the file `AFfGdukAp.README.txt` that contains info regarding the ransom of the data and how to recover the files, giving two mail addresses to contact, `fastwindGlobe@mail.ee` and `fastwindglobe@cock.li`, that have an unconventional mail domain, to remain safe and hidden, because they are committing a crime and it makes no sense to use a common mail domain like `@gmail`. It also has a Telegram to contact, which is `@decryptfastwind`, and also at the end we can see our unique `DECRYPTION ID`. The readme file is created in each folder of the system.
-![screenshot](lockbit_788.png)
+![screenshot](images/lockbit_788.png)
 If we look at the ProcessHacker log, we can see the process history after the execution of LockBit 3.0:
 - Deleted services:
-	![screenshot](lockbit_789.png)
-	![screenshot](lockbit_790.png)
+	![screenshot](images/lockbit_789.png)
+	![screenshot](images/lockbit_790.png)
 	
 And if we look at the services and suspend LockBit after it is executed, we will see that the token it has is `LUA://DecHdAutoAp` which means the UAC bypass was done correctly, as also the process is marked as elevated.
-![screenshot](lockbit_791.png)
+![screenshot](images/lockbit_791.png)
 
 The base icon and the wallpaper are stored at `C:/ProgramData`:
-![screenshot](lockbit_792.png)
+![screenshot](images/lockbit_792.png)
 The wallpaper is `AFfGdukAp.bmp`:
-	![screenshot](lockbit_793.png)
+	![screenshot](images/lockbit_793.png)
 	That is set in the registry, as is normally done, at `HKEY_CURRENT_USER\Control Panel\Desktop` with the value `C:/ProgramData/AFfGduKAp.bmp`.
-	![screenshot](lockbit_794.png)
+	![screenshot](images/lockbit_794.png)
 	
 And the icon is `AFfGdukAp.ico`:
-	![screenshot](lockbit_795.png)
+	![screenshot](images/lockbit_795.png)
 	That is set in the registry `HKEY_CLASSES_ROOT\AFfGduKAp\DefaultIcon` with the value of the path to the icon, `C:/ProgramData/AFfGduKAp.ico`.
-	![screenshot](lockbit_796.png)
+	![screenshot](images/lockbit_796.png)
 
 ### Execution workflow
 This is the general execution workflow for this LockBit 3.0 sample:
-![screenshot](lockbit_797.png)
+![screenshot](images/lockbit_797.png)
 ### YARA rule
 **YARA** is a tool used to identify and classify malware by defining patterns based on binary strings, structures, or behaviours. It plays a key role in threat hunting and malware analysis. In this project, a custom YARA rule is used to detect LockBit 3.0 based on unique characteristics observed during reverse engineering.
 
@@ -7582,17 +7582,17 @@ rule LockBit_3_0_victorK
 	We will check first our sample if the YARA rules are triggered by dragging the YARA rule to the left and the malware to the right.
 		- 0845a8c3be602a72e23a155b23ad554495bd558fa79e1bb849aa75f79d069194.exe:
 			We can see that with the copy we analysed, obviously all the rules match, as you can see at the bottom right, and that at the left the rule is triggered, as it's highlighted in green by the YARA rule.
-			![screenshot](lockbit_798.png)
+			![screenshot](images/lockbit_798.png)
 		- Other variants:
 			- 0d38f8bf831f1dbbe9a058930127171f24c3df8dae81e6aa66c430a63cbe0509.exe:
 				At this variant matches the weird header signatures and the hashing function signature.
-				![screenshot](lockbit_799.png)
+				![screenshot](images/lockbit_799.png)
 			- 80e8defa5377018b093b5b90de0f2957f7062144c83a09a56bba1fe4eda932ce.exe:
 				Also, this variant matches the weird header signatures and the hashing function signature.
-				![screenshot](lockbit_800.png)
+				![screenshot](images/lockbit_800.png)
 			- 391a97a2fe6beb675fe350eb3ca0bc3a995fda43d02a7a6046cd48f042052de5.exe:
 				The same as before, the weird header signatures and the hashing function signature match.
-				![screenshot](lockbit_801.png)
+				![screenshot](images/lockbit_801.png)
 
 ### MITRE ATT&CK Framework
 The **MITRE ATT&CK framework** is a curated knowledge base of tactics and techniques used by real-world adversaries. It helps analysts identify and classify malicious behaviour across different attack stages. In this project, LockBit 3.0 techniques are mapped to ATT&CK to highlight its capabilities in a structured and actionable way.
