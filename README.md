@@ -189,7 +189,7 @@ To replicate the entire research under the same environment, follow the steps be
 
 <div align="center">
     <a href="https://github.com/victorkvor/wannacry-vs-lockbit">
-      <img src="images/workflow_wannacry.png" alt="wannacry_wf" width="100%">
+      <img src="images/wannacry_wf.png" alt="wannacry_wf" width="100%">
     </a>
 </div>
 
@@ -223,7 +223,7 @@ To replicate the entire research under the same environment, follow the steps be
 
 <div align="center">
     <a href="https://github.com/victorkvor/wannacry-vs-lockbit">
-      <img src="images/workflow_lockbit.png" alt="lockbit_wf" width="100%">
+      <img src="images/lockbit_wf.png" alt="lockbit_wf" width="100%">
     </a>
 </div>
 
