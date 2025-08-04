@@ -64,11 +64,6 @@ The goal is to expose in-depth the mechanisms of evasion, persistence, obfuscati
 
 <!-- ABOUT THE PROJECT -->
 ## 🔎 About The Project <a id="about-the-project"></a>
-<div align="center">
-  <a href="https://github.com/victorkvor/wannacry-vs-lockbit">
-    <img src="images/topology.jpg" alt="Logo" width="30%">
-  </a>
-</div>
   <p align="justify">
     This repository based on my Bachelor's Thesis presents a comprehensive technical and documente study that compares two major ransomware families from different eras: WannaCry (2017) and LockBit 3.0 (2022). The research follows a reverse engineering process, employing both static and dynamic analysis techniques to dissect malware samples and thoroughly analyze the program's workflow, exposing its behavior. Special attention is given to anti-debugging techniques, lateral movement, obfuscation methods, persistence mechanisms, process and service termination, dynamic payload loading, backup deletion, and log clearance.
 
