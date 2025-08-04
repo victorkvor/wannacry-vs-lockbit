@@ -133,7 +133,10 @@ VirtualBox is a type 2 hypervisor and open-source software that, thanks to its e
 - 📜 `README.md` → This file.
 - 📜 `Memoria_TFG.pdf` → Final Bachelor's Thesis report in PDF format (compiled version).  
 - 📜 `LockBit_3_0.md` → Notes of LockBit 3.0 analysis.  
-- 📜 `WannaCry.md` → Notes of WannaCry analysis. 
+- 📜 `WannaCry.md` → Notes of WannaCry analysis.
+
+> [!NOTE]  
+> The Bachelor's Thesis is in spanish.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
