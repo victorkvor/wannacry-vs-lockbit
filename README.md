@@ -124,9 +124,9 @@ VirtualBox is a type 2 hypervisor and open-source software that, thanks to its e
 - 📂 `rules/` → YARA rules for detecting WannaCry and LockBit 3.0.  
 - 📂 `scripts/` → Helper scripts for LockBit 3.0 (AES key and payload decryption).
 - 📜 `README.md` → This file.
-- 📜 `Memoria_TFG.pdf` → Final TFG report in PDF format (compiled version).  
-- 📜 `LockBit_3_0.md` → LockBit 3.0 analysis summary.  
-- 📜 `WannaCry.md` → WannaCry analysis summary. 
+- 📜 `Memoria_TFG.pdf` → Final Bachelor's Thesis report in PDF format (compiled version).  
+- 📜 `LockBit_3_0.md` → Notes of LockBit 3.0 analysis.  
+- 📜 `WannaCry.md` → Notes of WannaCry analysis. 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
