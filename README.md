@@ -54,7 +54,7 @@ The goal is to expose in-depth the mechanisms of evasion, persistence, obfuscati
         <li><a href="#installation">📥 Installation</a></li>
       </ul>
     </li>
-    <li><a href="#comparatives">🔍 Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022)</a></li>
+    <li><a href="#comparatives">⚖️ Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022)</a></li>
     <li><a href="#resources">📚 Resources</a></li>
     <li><a href="#contributing">🤝 Contributing</a></li>
     <li><a href="#license">©️ License</a></li>
@@ -179,7 +179,7 @@ To replicate the entire research under the same environment, follow the steps be
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## 🔍 Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022) <a id="comparative"></a>
+## ⚖️ Comparative Analysis: WannaCry (2017) vs LockBit 3.0 (2022) <a id="comparative"></a>
 
 | Aspect | **WannaCry (2017)** | **LockBit 3.0** |
 |--------|------------------|-------------|
