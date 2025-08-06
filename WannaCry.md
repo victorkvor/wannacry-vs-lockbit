@@ -188,112 +188,60 @@ In `func_noargs()` there are two functions that are called, and after that it wi
 <div align="center"><img src="images/wannacry_40.png" alt="screenshot"></div>
 - Function create_service_executable (FUN_00407c40)
 	In this function we can see four Windows functions that are in the correct format, automatically formatted by Ghidra, when checking up the function signature. The functions can be verified in the Microsoft Documentation.
-	
 	<div align="center"><img src="images/wannacry_41.png" alt="screenshot"></div>
-	
 	If you check the first `sprintf`, we can see that we are using the executable_path variable we renamed before and storing it with additional parameters `-m security` (I will get something similar to `c:\Users\ANON\Desktop\Malware Samples\WannaCry Bueno\24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe -m security`). We will rename the variable where it's being stored, `local_104`, to `executable_path_with_args` to have it identified.
-	
 	<div align="center"><img src="images/wannacry_42.png" alt="screenshot"></div>
-	
 	In the rest of the function, we first establish a connection to the Service Control Manager (SCM), and if it's opened correctly (the handle is not zero), then we create a service with the `lpServiceName` of `mssesvc_2.0`, which is the real service name, and the `lpDisplayName` of `Microsoft Security Center (2.0)`, which will be the name that will be displayed in the user graphical interface.
-	
 	<div align="center"><img src="images/wannacry_43.png" alt="screenshot"></div>
-	
 	After that, it checks if the service is successfully created, and if it was successful, it starts the service.
-	
 	<div align="center"><img src="images/wannacry_44.png" alt="screenshot"></div>
-	
 	Then we will come back to the previous function `func_noargs()`, after renaming this function to `create_service_executable`. And go the next function `FUN_00407ce0()`.
-	
 	<div align="center"><img src="images/wannacry_45.png" alt="screenshot"></div>
-	
 	- Function write_resource1831_tasksche (FUN_00407ce0)
 	After getting a first inspection, the function is quite huge with many process address retrievals, variable declarations, and many predefined functions, which are actually well formatted thanks to Ghidra.
-	
 	<div align="center"><img src="images/wannacry_46.png" alt="screenshot"></div>
-	
 	First we try to get a handle to [`kernel32.dll`](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-entry-point-function), which is a Dynamic Link Library in Windows Operating Systems that provides essential functionalities to interact with the operating system. If it succeeds, not equal to zero, it tries to load the process address of four functions. [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa) to create a process, [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea) to create a file, [`WriteFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile) to write in the file it will create, and [`CloseHandle`](https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle) to close the `kernel32.dll` handle. I will rename the variables to make it more clear.
-	
 	<div align="center"><img src="images/wannacry_47.png" alt="screenshot"></div>
-	
 	Later we can see that after a successful load of the four functions, it tries to find a resource with the function [`FindResourceA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-findresourcea), which, if we look at the parameters, the second one, `lpName`, which in reality is `MAKEINTRESOURCE`, looks for an ID, which, if we convert it to decimal we can see that it's trying to find the resource with the ID `1831`. 
-	
 	<div align="center"><img src="images/wannacry_48.png" alt="screenshot"></div>
 	Also, the `DAT_0043137c` indicates the resource is of type `R`. 
 	<div align="center"><img src="images/wannacry_49.png" alt="screenshot"></div>
-	
 	If the resource is found, we get the handle of the resource with [`LoadResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadresource), lock it with [`LockResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-lockresource) (which actually just gets the pointer to the memory containing the resource), and get the size in bytes of the resource with [`SizeofResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-sizeofresource).
-	
 	<div align="center"><img src="images/wannacry_50.png" alt="screenshot"></div>
-	
 	The following decompiled code seems to not be decompiled correctly by Ghidra, probably because its heuristic doesn't do well in this case. We can use great resources like [DogBolt](https://dogbolt.org) to decompile, which is a compilation of multiple open-source decompilers. But, if we compare the code with assembly, we can see that it's trying to set to zero a range of bits, of which `0x40` (64) is the amount of bytes that will be zeroed. The behaviour is similar to `memset(puVar6, 0, 0x40)`.
-	
 	<div align="center"><img src="images/wannacry_51.png" alt="screenshot"></div>
-	
 	Now if we continue reading the code, we see two `sprintf` that are attempting to store a string with multiple parameters, for which at first glance we see only one parameter (besides the variable to store the string). The first `sprintf` should have two additional parameters, taskche.exe and the Windows strings. The second `sprintf` is missing an additional parameter, which is the string Windows (`%s` is a placeholder to be replaced by the rest of the parameters).
-	
 	<div align="center"><img src="images/wannacry_52.png" alt="screenshot"></div>
-	
 	For the first `sprintf`, we will override the `signature`, adding two more parameters to make Ghidra automatically recognise the missing parameters.
-	
 	<div align="center"><img src="images/wannacry_53.png" alt="screenshot"></div>
-	
 	<div align="center"><img src="images/wannacry_54.png" alt="screenshot"></div>
-	
 	After changing it, we will see the changes reflected. The path saved will be `C:\WINDOWS\tasksche.exe`, so we will rename the variable to keep it identified. 
-	
 	<div align="center"><img src="images/wannacry_55.png" alt="screenshot"></div>
-	
 	For the next `sprintf`, we will do the same, but now we just need to add one param. The path saved will be `C:\WINDOWS\qeriuwjhrf`.
-	
 	<div align="center"><img src="images/wannacry_56.png" alt="screenshot"></div>
-	
 	And just in the next line we can see the function loaded from `kernel32.dll`, [`MoveFileExA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexa), which has two parameters, which, based on the flag, `MOVEFILE_REPLACE_EXISTING`, will be renamed to `qeriuwjhrf` if `tasksche.exe` already exists.
-	
 	<div align="center"><img src="images/wannacry_57.png" alt="screenshot"></div>
-	
 	A few lines down, we can see the previously loaded address of the function, `createFileA`, to be called as a function.
-	
 	<div align="center"><img src="images/wannacry_58.png" alt="screenshot"></div>
-	
 	The problem is that it seems it is not taking the variable correctly, so you will need to select the data type manually to make it be recognised by Ghidra. So you will need to retype globally the data type to `createFileA` as a pointer to call the function properly.
-	
 	<div align="center"><img src="images/wannacry_59.png" alt="screenshot"></div>
-	
 	<div align="center"><img src="images/wannacry_60.png" alt="screenshot"></div>
-	
 	The result will be that we will be creating a file with `createFileA`, retrieving its handle.
-	
 	<div align="center"><img src="images/wannacry_61.png" alt="screenshot"></div>
-	
 	If the creation of the handle is successful, the `writeFile` function will be called, which will save the content of the resource `1831` into `tasksche.exe` (specified in the opened handle), and later the function `closeHandle` will close the opened handle, for which we will need to repeat the procedure of retype global (`resource_1831_locks` has another name because it's bugged and says that `resource_1831_lock` exists, when it doesn't exist after accidentally reverting changes).
-	
 	<div align="center"><img src="images/wannacry_62.png" alt="screenshot"></div>
-	
 	Now, there is a huge amount of code that is not easy to read.
-	
 	First we have a loop that is setting to zero 16 bytes (`0x10`) of `puVar6`.
-	
 	<div align="center"><img src="images/wannacry_63.png" alt="screenshot"></div>
-	
 	Secondly, we have a variable with a big value, and also we load a pointer with data that if we clear the code bytes and make it a `TerminatedCString`, we see an interesting parameter, which is "` /i` ", that will be a parameter that makes a program silent. In the loop we go character by character, advancing the `mysterious_String` pointer one by one while getting each character, subtracting one from `mysterious_String_size` with each, until the null terminator appears, and later does a `NOT` operation with the big value, and after inverting the bits, we get the total size of the string.
-	
 	<div align="center"><img src="images/wannacry_64.png" alt="screenshot"></div>
-	
 	<div align="center"><img src="images/wannacry_65.png" alt="screenshot"></div>
-	
 	<div align="center"><img src="images/wannacry_66.png" alt="screenshot"></div>
-	
 	<div align="center"><img src="images/wannacry_67.png" alt="screenshot"></div>
-	
 	<div align="center"><img src="images/wannacry_68.png" alt="screenshot"></div>
-	
 	For the next step, which is harder to see, now we go through the entire `tasksche` path string until reaching the null terminator, staying at this pointer. Next we replace `tasksche_paths_string` by the mysterious string (`aux_mysterious_String - mysterious_String_size` returns to the start of the mysterious string). Now it subtracts one in the pointer of `aux_tasksche_path_string` to substitute the null terminator. In the first loop for, the mysterious string that is now copied to `tasksche_path_string` is appended in a block of 4 bytes to the end of `aux_tasksche_path_string` (the actual `tasksche` path). And the second loop (`for`) is for the remaining bytes (3, 2 or 1 byte remaining), which copies byte by byte.
-	
 	<div align="center"><img src="images/wannacry_69.png" alt="screenshot"></div>
-	
 	Now after appending the pointer data to the end of the `tasksche` path, the process is created with the added parameter "` \i`" that will execute the process silently with the [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa) function, and it is especially interesting that one of the parameters that corresponds to `dwCreationFlags` also has the value `0x8000000` ([`CREATE_NO_WINDOW`](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)) that makes it run silently, without displaying any console. If the process is created successfully, then we close open handles.
-	
 	<div align="center"><img src="images/wannacry_70.png" alt="screenshot"></div>
 
 #### Function real_entry
@@ -302,10 +250,8 @@ Otherwise, if we had arguments, it will not enter the if to enter the `func_noar
 <div align="center"><img src="images/wannacry_71.png" alt="screenshot"></div>
 - function configure_service_failure (FUN_00407fa0)
 	In this function we see a bunch of strange data, but if we check the [`ChangeserviceConfig2A Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfig2a), the second parameter `dwInfoLevel` is `2`, which is `SERVICE_CONFIG_FAILURE_ACTIONS`, meaning the third parameter has to be of type `SERVICE_FAILURE_ACTIONS`. Changing the type of the variable will fix the function completely. Also, the second parameter of the whole function refers to seconds, because the variable `scact` is used for the delay multiplied by a thousand to get milliseconds, the required format.
-	
 	<div align="center"><img src="images/wannacry_72.png" alt="screenshot"></div>
 	Because the function configures the service `mssecsvc2.0` to restart automatically on failure after `seconds`, if `seconds != -1` to make the malware service more persistent, we will rename the function `configure_service_failure`.
-	
 	<div align="center"><img src="images/wannacry_73.png" alt="screenshot"></div>
 
 So after configuring the service, if a failure occurs, then it creates a `SERVICE_TABLE_ENRYA` with the service name `mssecsvc2.0` and pointer to the service's main function.
@@ -313,132 +259,93 @@ So after configuring the service, if a failure occurs, then it creates a `SERVIC
 <div align="center"><img src="images/wannacry_74.png" alt="screenshot"></div>
 - LAB_00408000
 	It points to an undefined function that registers and launches the malware as a Windows service named `mssecsvc2.0` with [`RegisterServiceCtrlHandlerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-registerservicectrlhandlera).
-	
 	<div align="center"><img src="images/wannacry_75.png" alt="screenshot"></div>
 	If we enter `FUN_00407bd0()`, we can see more, and there is also a sleep that lasts 24 hours to keep it alive.
 	- function FUN_00407bd0
 		This function executes if the function `FUN_00407b90()` doesn't return zero, which does some operations based on the filename to see if the conditions are doable. If it's different from zero, then it seeks concurrency by creating one thread for a specific routine `_StartAddress_00407720` and another 128 threads for another specific routine `_StartAddress_00407840` based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/beginthread-beginthreadex?view=msvc-170).
-		
 		<div align="center"><img src="images/wannacry_76.png" alt="screenshot"></div>
 		- Routine \_StartAddress_00407720 (1 thread)
 			The upcoming function features too much code and is not correctly decompiled, but we will be looking at `FUN_00409160()` and the thread that is created for each parameter that we retrieve from the function, which is the logical approach.
-			
 			<div align="center"><img src="images/wannacry_77.png" alt="screenshot"></div>
 			- function FUN_00409160
 				This function, first, retrieves the adapter's information of the computer.
-				
 				<div align="center"><img src="images/wannacry_78.png" alt="screenshot"></div>
 				Then it retrieves, based on the operations, the IP address and the subnet mask, and then if they are valid, it retrieves the broadcast address and the network address.
-				
 				<div align="center"><img src="images/wannacry_79.png" alt="screenshot"></div>
 			- Routine StartAddress_004076b0
 				We can see that it first checks with the result of the function `FUN_00407480()` if it satisfies a condition, entering another thread `_StartAddress_00407540`, and if fails, does nothing and ends that thread.
-				
 				<div align="center"><img src="images/wannacry_80.png" alt="screenshot"></div>
 				- function FUN_00407480
 					Simple function that checks if it can establish a connection with a given IP. Based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket), it creates a `sock_addr` with a `param_1` as the destination IP, with the port 445 (`SMB`) and with the socket function being the first parameter 2 (`IPv4`), the second parameter 1 (`SOCK_STREAM`) for bidirectional conversation, and as the third parameter 6 (`TCP`) that if it doesn't succeeds returns zero, and if it succeeds, a distinct number.
-					
 					<div align="center"><img src="images/wannacry_81.png" alt="screenshot"></div>
 				- Routine \_StartAddress_00407540
 					If the IP was valid, it first copies the IP in ASCII and then calls a function with that IP and a second parameter, 455 (`SMB`).
-					
 					<div align="center"><img src="images/wannacry_82.png" alt="screenshot"></div>
 					- function FUN_00401980
 						The function attempts to connect to `SMB` with `IPv4` with the given IP and the port 455.
-						
 						<div align="center"><img src="images/wannacry_83.png" alt="screenshot"></div>
 						Then it probes with different `SMB` payloads based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/32b5d4b7-d90b-483f-ad6a-003fd110f0ec).
-						
 						<div align="center"><img src="images/wannacry_84.png" alt="screenshot"></div>
 						First tries with a normal `SMB` probe, because of what we can see at the buffer; also, the `0x72` value is the [`SMB_COM_NEGOTIATE`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/96ccc2bd-67ba-463a-bb73-fd6a9265199e) that will start establishing the SMB connection.
-						
 						<div align="center"><img src="images/wannacry_85.png" alt="screenshot"></div>
 						Later it probes again with the `0x73` value, which, is the [`SMB_COM_SESSION_SETUP_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/d902407c-e73b-46f5-8f9e-a2de2b6085a2) that establishes the `SMB` connection.
-						
 						<div align="center"><img src="images/wannacry_86.png" alt="screenshot"></div>
 						After that it probes again with the `0x75` value that is the [`SMB_COM_TREE_CONNECT_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/a105173a-d854-4950-be28-3d3240529ec3) and also has a placeholder that is substituting in order to do the Eternal Blue exploit. That is done by the `FUN_004017b0()`, which substitutes the buffer placeholder, making the probe attempt to access the [`IPC$`](https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/inter-process-communication-share-null-session) hidden shared resource in Windows.
-						
 						<div align="center"><img src="images/wannacry_87.png" alt="screenshot"></div>
-						
 						<div align="center"><img src="images/wannacry_88.png" alt="screenshot"></div>
-						
 						<div align="center"><img src="images/wannacry_89.png" alt="screenshot"></div>
 						- function FUN_004017b0
 							The function changes the `USERID_PLACEHOLDER` and `TREEPATH_REPLACE` as it does multiple operations.
-							
 							<div align="center"><img src="images/wannacry_90.png" alt="screenshot"></div>
-							
 							<div align="center"><img src="images/wannacry_91.png" alt="screenshot"></div>
 						The next probe directly confirms the exploit by using the value `0x25`, which is the [`SMB_COM_TRANSACTION`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/0ed1ad9f-ab96-4a7a-b94a-0915f3796781) that contains the `PeekNamedPipe` subcommand set to zero.
-						
 						<div align="center"><img src="images/wannacry_92.png" alt="screenshot"></div>
 						Then it checks if the `SMB` probe returns [`STATUS_INSUFF_SERVER_RESOURCES (0xC0000205)`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/2c9b7ac3-3dc8-4624-9ce4-80306c8c6d3a); that confirms that the machine is vulnerable to the EternalBlue exploit and returns `1`. If not or any of the previous steps fail, it will return `0`, not vulnerable.
-						
 						<div align="center"><img src="images/wannacry_93.png" alt="screenshot"></div>
 					Then if it's vulnerable, it executes the `FUN_00401b70()`, which also has the port 445.
-					
 					<div align="center"><img src="images/wannacry_94.png" alt="screenshot"></div>
 					- function FUN_00401b70:
-						
 						<div align="center"><img src="images/wannacry_95.png" alt="screenshot"></div>
 						It first establishes a connection through SMB protocol (port 445), where the first two buffers establish the connection with [`SMB_COM_NEGOTIATE`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/96ccc2bd-67ba-463a-bb73-fd6a9265199e) and [`SMB_COM_SESSION_SETUP_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/d902407c-e73b-46f5-8f9e-a2de2b6085a2).
 						The third buffer sent does [`SMB_COM_TREE_CONNECT_ANDX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/a105173a-d854-4950-be28-3d3240529ec3), connecting to the `IPC$` shared resource. 
-						
 						<div align="center"><img src="images/wannacry_96.png" alt="screenshot"></div>
 						Then in the fourth buffer sent, it probes with the `0x32` value, that is [`SMB_COM_TRANSACTION2`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/3d9d8f3e-dc70-410d-a3fc-6f4a881e8cab), that will check if the machine is infected with the Double Pulsar backdoor, which was allegedly employed by the U.S. National Security Agency and released by the group of hackers ShadowBrokers, based on the info provided by [`Qualys`](https://threatprotect.qualys.com/2017/04/26/doublepulsar-backdoor-spreading-rapidly-in-the-wild/). The gimmick is that if the returned value of the Multiplex ID field is `0x41` for machines not infected with the Double Pulsar and `0x51` for the infected ones, which is the check we can see, then if everything went alright, it will make a final send of an executable through the buffer overflow done.
-						
 						<div align="center"><img src="images/wannacry_97.png" alt="screenshot"></div>
 						If we check the buffer, we will see that it has a huge amount of data with the signature `MZ`, which pertains to an executable, meaning it will infect the machine through the Double Pulsar backdoor.
-						
 						<div align="center"><img src="images/wannacry_98.png" alt="screenshot"></div>
 					So if it was successful, then it stops, but if not, then it continues to the next function, `FUN_00401370()`, with a bunch of unclear values.
-					
 					<div align="center"><img src="images/wannacry_99.png" alt="screenshot"></div>
 					- function FUN_00401370
 						At this function we have an interesting function `FUN_00401d80()`,  which seems to load a massive amount of data, near to 4700 lines of code, into the variables to load a payload. First we see it's loading some `SMB` payloads to establish a connection.
-						
 						<div align="center"><img src="images/wannacry_100.png" alt="screenshot"></div>
 						Where the most interesting one seems to be the `SMB` payload with the `0x33` value that is [`SMB_COM_TRANSACTION2_SECONDARY`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/80207e03-6cd6-4bbe-863f-db52f4d2cb1a), to do the exploit if the Double Pulsar backdoor was not present.
-						
 						<div align="center"><img src="images/wannacry_101.png" alt="screenshot"></div>
 						Then we see at the global variable `DAT_0041bbb0` that it's a huge payload, doing some sort of operation (there are more suspicious Base64 payloads).
-						
 						<div align="center"><img src="images/wannacry_102.png" alt="screenshot"></div>
 						If we copy this payload and save it to a binary, we can analyse it further.
-						
 						Also, we will delete the empty data.
-						
 						<div align="center"><img src="images/wannacry_103.png" alt="screenshot"></div>
 						Then with that we will copy the text, which could be obfuscated code with Base64, and paste it in a file `weirdpayload.b64`; the part that looks like Base64 because, besides the first 2 bytes, the rest is a standard character of Base64.
-						
 						<div align="center"><img src="images/wannacry_104.png" alt="screenshot"></div>
 						Then if in CMD we execute the command `certutil -decode weirdpayload.b64 output.bin`, it will succeed:
-						
 						<div align="center"><img src="images/wannacry_105.png" alt="screenshot"></div>
 						Ghidra doesn't seem to understand this code, but if we use [`Dogbolt`](https://dogbolt.org/), a compilation of different decompilers, Binary Ninja seems to correctly interpret this binary, which doesn't seem to have anything relevant, besides seeing a function of type `regparm`.
-						
 						<div align="center"><img src="images/wannacry_106.png" alt="screenshot"></div>
 			So recapping the whole function, it retrieves multiple local addresses and tries to establish `SMB` connections with hosts in the local network, looking for vulnerable devices to the EternalBlue exploit, looking if it has the Double Pulsar backdoor, and sending an executable to continue infecting other devices, and if it doesn't have it, it exploits the EternalBlue by passing shellcodes in order to infect other devices.
 		- Routine \_StartAddress_00407840 (128 threads)
 			The first thing that the thread executes, which we can see at the start of the code, is that it sets the seed of `srand` with the addition of the values [`GetTickCount`](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount), the number of milliseconds that have elapsed since the system was started, [`GetCurrentThread`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthread), a pseudo-handle for the thread, [`GetCurrentThreadId`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthreadid), the ID of the thread, and [`time`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/time-time32-time64?view=msvc-170), the seconds elapsed since midnight, January 1 of 1970.
-			
 			<div align="center"><img src="images/wannacry_107.png" alt="screenshot"></div>
 			Then it creates random IPs, with the first octet being different from 127 (`localhost`) and smaller than `224` (`<=223` to not use private IPs as `class D` multicast `224-239` and `class E` experimental `240-255`), and each one of them gets a random value with the function `FUN_00407660()`, and by using `% 255`, it gets a value between `0` and `255`.
-			
 			<div align="center"><img src="images/wannacry_108.png" alt="screenshot"></div>
 			- function FUN_00407660
 				Small function that makes clear by using [`CryptGenRandom`](https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptgenrandom) that it generates a random value; if the first `if` didn't load a crypto provider, then it will generate a random value with `rand()`.
-				
 				<div align="center"><img src="images/wannacry_109.png" alt="screenshot"></div>
 			The random IP is created with `sprintf` and then checked with the function `FUN_00407480()`, which we have seen before, which checks if it's possible to connect to that IP.
 			- function FUN_00407480
-				
 				<div align="center"><img src="images/wannacry_110.png" alt="screenshot"></div>
 			If it's possible to connect, then it changes the last octet by creating a new IP with `sprintf` and changing the last field, starting from `1` up to `254`. Checking again if each IP is valid, and if it's valid it enters the thread `_StartAddress_00407540` which was the same function as the standalone thread that attempted to infect other devices with EternalBlue and DoublePulsar backdoor using the same methodology.
-			
 			<div align="center"><img src="images/wannacry_111.png" alt="screenshot"></div>
 			- Routine \_StartAddress_00407540
-				
 				<div align="center"><img src="images/wannacry_112.png" alt="screenshot"></div>
 		So recapping the functionality of the `mssecsvc2.0` service with arguments, it attempts to infect other computers by creating one thread that attempts to infect devices from the local network and creating 128 threads that will attempt to infect devices from random global IP addresses, ignoring IPs starting with `127`, or `224` or higher.
 
@@ -679,17 +586,14 @@ Once both conditions are met, the program attempts to copy the current executabl
 	In the code we can see that in the function [`GetFullPathNameA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfullpathnamea) we're getting the complete path of the copied file `tasksche.exe`, which later is used as a parameter in a function that we will analyse.
 	- Function create_tasksche_service (FUN_00401ce8)
 		This function, what it does first, is open the Service Control Manager (SCM) of Windows with [`OpenSCManagerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagera) with the `SC_MANAGER_ALL_ACCESS (0xF003F)` rights, all permissions. Later it tries to open a service with the previous random string generated, giving it all the permissions with `SERVICE_ALL_ACCESS (0xF01FF)` rights. If the service exists, it is started and the handles are closed. If the service does not exist, it is created by building a command string in `cmd_command` using `sprintf`, which will be `cmd.exe /c {Ruta tasksche.exe}`, where `/c` causes the command prompt to close once the command finishes. The service is created with [`CreateServiceA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-createservicea), using the service name displaying the random string, and configured to run with the specified command. If the service is successfully created, it is started with [`StartServiceA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea), and the handles are closed afterward.
-		
 		<div align="center"><img src="images/wannacry_169.png" alt="screenshot"></div>
 		The function therefore creates the `tasksche.exe` service, so we will rename it to `create_tasksche_service`:
-		
 		<div align="center"><img src="images/wannacry_170.png" alt="screenshot"></div>
 	Therefore, if the `tasksche` service is created and another function (which we will analyze later) succeeds, the function will complete successfully.
 	
 	<div align="center"><img src="images/wannacry_171.png" alt="screenshot"></div>
 	- Function get_mutex_tasksche (FUN_00401eff)
 		This function attempts to acquire a mutex with a specific name, `Global\MsWinZonesCacheCounterMutexA0`. If it fails, it will retry `tries_number` times, waiting one second between each attempt. If the mutex already exists, it returns `1`; if all attempts fail, it returns `0`. This mechanism is used to prevent multiple instances of the malware from running simultaneously, avoiding double infection and remaining stealthier by continuously checking if another instance is already executing.
-		
 		<div align="center"><img src="images/wannacry_172.png" alt="screenshot"></div>
 	Therefore, if the service is created and the mutex is acquired, the function returns `1`.
 	
@@ -699,16 +603,12 @@ Once both conditions are met, the program attempts to copy the current executabl
 	<div align="center"><img src="images/wannacry_174.png" alt="screenshot"></div>
 	- Function run_process_params (FUN_00401064)
 		The function receives the process path, a timeout, and a process state. It attempts to create the process using the information provided with [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa).
-		
 		<div align="center"><img src="images/wannacry_175.png" alt="screenshot"></div>
 		From the given information, there are two start-up process information (`startup_info`) attributes: `wShowWindow` set to 0, which makes the window hidden, and `dwFlags` set to 1, which enables this behaviour.
-		
 		<div align="center"><img src="images/wannacry_176.png" alt="screenshot"></div>
 		Subsequently, if the process creation fails, the function returns `0`. Otherwise, in the `else` branch, it first checks if there is a timeout specified. If there is, it waits for the process to finish using [`WaitForSingleObject`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject) for the given timeout duration. If the process does not finish within that time, it is terminated with [`TerminateProcess`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess). If a non-null process status pointer is specified, the exit code of the process is obtained with [`GetExitCodeProcess`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess) and stored. Finally, the handles are closed and the function returns `1`.
-		
 		<div align="center"><img src="images/wannacry_177.png" alt="screenshot"></div>
 		Based on the functionality, the function will be renamed to `run_process_params`:
-		
 		<div align="center"><img src="images/wannacry_178.png" alt="screenshot"></div>
 	Therefore, if there was no previous instance running, we manually create the process and verify that it is running.
 	
@@ -873,10 +773,8 @@ Also, `local_31c` and `local_26a` are next to each other, and it usually means a
 Before proceeding with the analysis, of this function we will analyse the function `FUN_00401000()` .
 - Function write_or_read_cwnry (FUN_00401000)
 	In this function based on the `op_type`, if zero it will be `wb`, while different from zero it will be `rb` at the variable `_Mode`. Which also later, after opening the file we decrypted and extracted from the resource `2058.XIA`, the file `c.wnry`, we will write in the file with the buffer content the first 780 bytes (the actual size) if `op_type = 0`, and if `op_type != 0`, then it will read from the file and write it at the buffer. 
-	
 	<div align="center"><img src="images/wannacry_223.png" alt="screenshot"></div>
 	Taking into account the functionality, we will rename the function to `write_or_read_cwnry`.
-	
 	<div align="center"><img src="images/wannacry_224.png" alt="screenshot"></div>
 
 So the function loads Bitcoin addresses, and with the buffer `tor_links` retrieves the Tor information, if the first read is successful, because of the one passed as a parameter.
@@ -932,6 +830,8 @@ This function at first sight loads a variety of `kernel32.dll` function pointers
 | `cryptEncrypt`         | `CryptEncrypt`         | Encrypts data using a specified key                                      |
 | `cryptDecrypt`         | `cryptDecrypt`         | Decrypts data                                                            |
 | `_cryptGenKey`         | `CryptGenKey`          | Generates a cryptographic key (symmetric/asymmetric, depending on flags) |
+
+.
 	<div align="center"><img src="images/wannacry_232.png" alt="screenshot"></div>The malware is probably being prepared to start encrypting and decrypting, based on the function pointers that it's retrieving. If the `cryptAcquireContexA` is already loaded, then it will return a `1`, and if it's not loaded, it will try to load all the function pointers, and if it succeeds, it will return a `1` also, but if it fails, it will return a `0`. 
 	Based on this, we will rename the function to `init_crypto_function_ptr`:
 	<div align="center"><img src="images/wannacry_233.png" alt="screenshot"></div>
@@ -950,6 +850,7 @@ The functions loaded from the library `kernel32.dll` are the following:
 |`moveFileExW`|`MoveFileExW`|Moves a file with more options (e.g., delay until reboot)|
 |`deleteFileW`|`DeleteFileW`|Deletes a file (Unicode)|
 |`_closeHandle`|`CloseHandle`|Closes an open object handle (e.g., file, process, thread)|
+
 Based on the functionality of the described function, we will rename it to `init_function_ptr`:
 
 <div align="center"><img src="images/wannacry_235.png" alt="screenshot"></div>
@@ -997,72 +898,49 @@ So if the `import_rsa_key()` function is done correctly, then it enters the `if`
 
 <div align="center"><img src="images/wannacry_246.png" alt="screenshot"></div>
 - decrypt\_twnry (FUN_004014a6)
-	
 	<div align="center"><img src="images/wannacry_247.png" alt="screenshot"></div>
 	The function is a function of an object because of `__thiscall` and `*this` reference. The first interesting part comes when it attempts to open the file `t.wnry`, the one with the unidentifiable content with a custom signature, with [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea), so that if the file is opened successfully, then with [`GetFileSizeEx`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfilesizeex) we retrieve the size of the file, checking that it doesn't surpass 100MB (`0x6400000`). If it doesn't surpass that size, then it compares the first 8 bytes of `t.wnry` and compares it to the string `WANACRY!`, which is exactly the same custom signature we commented on before. 
-	
 	<div align="center"><img src="images/wannacry_248.png" alt="screenshot"></div>
 	Then we read the next 4 bytes, which, if it equals 256, then it continues reading. Which, based on the next 4 bytes in `t.wnry` in little endian, is actually 256:
-	
 	<div align="center"><img src="images/wannacry_249.png" alt="screenshot"></div>
 	After that it will read and save in this (object) 256 bytes of a supposedly AES key encrypted with the RSA2 key we loaded from memory (because of the size, the context, and the next function). After that it reads 4 mysterious bytes, probably just filler data. After that it reads 8 mysterious bytes that are also used later, which if checked at HxD is 65536. 
-	
 	<div align="center"><img src="images/wannacry_250.png" alt="screenshot"></div>
 	And with the `header_size_4` variable (256) and the 256 bytes of the suspected AES key encrypted with RSA2, because of the `0x4c8` being the same memory position offset where the 256 bytes read have been saved, a function of the object is called `FUN_004019e1()`.
-	
 	- decrypt_w_rsakey (FUN_004019e1)
 		The first fix will be making the correct variables for the params, where the second parameter, the 256 bytes read, has to be a `BYTE` pointer. After fixing and tidying up the code, we can see that the object tries to decrypt with a key, probably the RSA2 key we retrieved from memory, with the 256 bytes of content we passed with data, decrypting its content onto `data_out`, which will be the AES key.
-		
 		<div align="center"><img src="images/wannacry_251.png" alt="screenshot"></div>
 		Based on the functionality, the function will be renamed to `decrypt_w_rsakey`.
-		
 		<div align="center"><img src="images/wannacry_252.png" alt="screenshot"></div>
 	After that, there are two mysterious functions that are hard to understand and correctly explain their behaviour: `FUN_00402a76()` and `FUN_00403a77()`.
-	
 	<div align="center"><img src="images/wannacry_253.png" alt="screenshot"></div>
 	- aes_function_1 (FUN_00402a76)
 		Checking the parameters that we pass, we have the decrypted content of `t.wnry`, its size, and a byte `0x10` (16 bytes) that doesn't make sense until we correlationate it with the code, because AES uses 128-bit blocks (16 bytes). Also the PTR_DAT_0040f578 references an address of 32 bytes (256 bits). 
-		
 		<div align="center"><img src="images/wannacry_254.png" alt="screenshot"></div>
 		As an example of why it has to be an AES function, there is a check of `param_3` which is `decrypt_twnry_size`, that checks if it's 16 (128 bits), 24 (192 bits) or 32 (256 bits), the same exclusive keys that the AES algorithm can use based on [`NIST DOCS`](https://web.archive.org/web/20150407153905/http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf), and if it's not the same, it throws an exception.
-		
 		<div align="center"><img src="images/wannacry_255.png" alt="screenshot"></div>
 		But the most important thing and the proof that it is an AES function is that in the part where it starts doing `XOR` operations, common in AES, it interacts with a pointer of data that has the same values as the `forward S-Box` used in the SubBytes step of AES encryption of 256 bytes. 
 		This is the table of the [`NIST DOCS`](https://web.archive.org/web/20150407153905/http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf):
-		
 		<div align="center"><img src="images/wannacry_256.png" alt="screenshot"></div>
 		And this is the pointer `DAT_004089fc` being used in the function:
-		
 		<div align="center"><img src="images/wannacry_257.png" alt="screenshot"></div>
-		
 		<div align="center"><img src="images/wannacry_258.png" alt="screenshot"></div>
 		Based on the functionality, we will rename the function to `aes_function_1`:
-		
 		<div align="center"><img src="images/wannacry_259.png" alt="screenshot"></div>
 	- aes_function_2 (FUN_00403a77)
 		There are also `XOR` operations and some pointer data that looks like `custom S-box`; the function will be renamed to `aes_function_2`:
-		
 		<div align="center"><img src="images/wannacry_260.png" alt="screenshot"></div>
 		Also the second parameter is the RSA2 key that we have seen in `decrypt_w_rsakey()`. Which, based on the parameters, will decrypt with the AES key the rest of the content, based on the full size to read with `local_28.s.LowPart`, and save it in the `large_buffer`.
-		
 		<div align="center"><img src="images/wannacry_261.png" alt="screenshot"></div>
 		It also has a characteristic table used in the AES decryption process, the `inverse S-BOX` table, in the pointer of data `DAT_00408afc`. It's found in `aes_function2() > FUN_00403797 > FUN_004031bc`.
-		
 		<div align="center"><img src="images/wannacry_262.png" alt="screenshot"></div>
-		
 		<div align="center"><img src="images/wannacry_263.png" alt="screenshot"></div>
 	Based on the whole behaviour, it takes the first 8 bytes and compares it with `WANACRY!` which is the custom signature and we have seen it in `t.wnry`. 
-	
 	<div align="center"><img src="images/wannacry_264.png" alt="screenshot"></div>
 	Then it takes 4 bytes that represent the AES key encrypted with the RSA2 key size, which is 256.
-	
 	We use the size we retrieved to obtain the next 256 bytes that we will decrypt with the RSA2 key we found in memory to get the encrypted AES key.
-	
 	After that, it takes 4 mysterious bytes that seem to be filler data.
-	
 	<div align="center"><img src="images/wannacry_265.png" alt="screenshot"></div>
 	And later, 8 bytes that will be used to allocate a huge buffer of data as an amount of data to allocate. The size is 65536.
-	
 	<div align="center"><img src="images/wannacry_266.png" alt="screenshot"></div>
 	Then the rest of the data (65536 bytes) is decrypted with the decrypted AES key.
 	
@@ -1074,6 +952,8 @@ So if the `import_rsa_key()` function is done correctly, then it enters the `if`
 | **Unknown/filler**    | `0x010C`           | `0x0110`         | 4            | Possibly unused or reserved                                               |
 | **Payload size**      | `0x0110`           | `0x0117`         | 8            | Value: `0x0000000000010000` = 65,536 bytes (size of encrypted data block) |
 | **Encrypted payload** | `0x0118`           | `0x10117`        | 65,536       | Encrypted data to be decrypted using the AES key                          |
+
+.
 	And the function returns the decrypted payload.
 	Based on the functionality, we will rename the function to `decrypt_twnry`:
 	<div align="center"><img src="images/wannacry_267.png" alt="screenshot"></div>
@@ -1101,24 +981,19 @@ Then you will have to specify a `Start-offset` and a `End-offset` or a `Length`:
 <div align="center"><img src="images/wannacry_272.png" alt="screenshot"></div>
 - encrypted_aes_key.bin:
 	First select the data range and copy it.
-	
 	<div align="center"><img src="images/wannacry_273.png" alt="screenshot"></div>
 	Now create a new file on `File > New` or press `Ctrl+N`. 
-	
 	<div align="center"><img src="images/wannacry_274.png" alt="screenshot"></div>
 	And now right-click and `Paste insert` or `Ctrl+V` at the start.
-	
 	<div align="center"><img src="images/wannacry_275.png" alt="screenshot"></div>
 	And save it in `File > Save as...`.
 - encrypted_payload.bin:
 	The same as the previous one.
-	
 	<div align="center"><img src="images/wannacry_276.png" alt="screenshot"></div>
 With this done, now we have the encrypted files:
 
 <div align="center"><img src="images/wannacry_277.png" alt="screenshot"></div>
 - rsa2key.bin:
-	
 	<div align="center"><img src="images/wannacry_278.png" alt="screenshot"></div>
 
 | Field Name            | Start Offset (hex) | End Offset (hex) | Size (bytes) | Description                                      |
@@ -1462,7 +1337,6 @@ cscript.exe //nologo m.vbs
 del m.vbs
 ```
 .
-	
 	<div align="center"><img src="images/wannacry_301.png" alt="screenshot"></div>
 
 #### Kill processes
@@ -1716,7 +1590,7 @@ The program has a list of extensions that will encrypt, which can be seen in def
 - `.cgm`
 - `.raw`
 - `.gif`
-- `.png" alt="screenshot"></div>`
+- `.png`
 - `.bmp`
 - `.vcd`
 - `.iso`
@@ -1809,18 +1683,14 @@ Bottom left, there are three options:
 - **About Bitcoin**: Opens the Wikipedia page on Bitcoin (`https://en.wikipedia.org/wiki/Bitcoin`)
 - **How to buy bitcoins**: Opens a Google search for buying Bitcoin (`https://www.google.com/search?q=how+to+buy+bitcoin`).
 - **Contact Us**: Opens a form allowing the victim to send a message to the attacker
-	
 	<div align="center"><img src="images/wannacry_308.png" alt="screenshot"></div>
 At the bottom there are two other options:
 **Bottom right options:**
 - **Check Payment**: Attempts to connect to a remote server to verify payment status. 
-	
 	<div align="center"><img src="images/wannacry_309.png" alt="screenshot"></div>
 - **Decrypt**: Clicking `Decrypt` and then `Start` prompts the user to pay before decryption can begin.
-	
 	<div align="center"><img src="images/wannacry_311.png" alt="screenshot"></div>
 **Top right corner**: Language selection menu for the ransomware message.
-	
 	<div align="center"><img src="images/wannacry_312.png" alt="screenshot"></div>
 
 #### Process and Service Analysis
