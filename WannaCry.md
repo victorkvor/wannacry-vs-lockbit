@@ -7,6 +7,7 @@ The malware will be compressed with a password as an additional security measure
 # Ghidra
 ## Creating our WannaCry Project in Ghidra
 ---
+
 In `File > New Project...` or `CTRL+N`.
 
 <div align="center"><img src="images/wannacry_2.png" alt="screenshot"></div>
@@ -37,6 +38,7 @@ After the import, it will generate the results, informing that the exports were 
 Now to start with the Statical Analysis we just need to click on the imported WannaCry sample at Ghidra.
 
 <div align="center"><img src="images/wannacry_8.png" alt="screenshot"></div>
+
 The first time, it will say that the executable has not been analysed, so we will start the analysis by clicking `Yes.`
 
 Now, for the analysis options, we need to additionally enable the `Decompiler Parameter ID` to make the code more readable and accurate by making Ghidra attempt to identify function parameters and their types during the decompilation phase of the binary code.
@@ -46,16 +48,21 @@ Now, for the analysis options, we need to additionally enable the `Decompiler Pa
 Also, it will be important to enable the `WindowsPE x86 Propagate External Parameters` option to recognize external library function calls on the Windows platform, such as the Windows API functions that will be very important throughout the entire analysis.
 
 <div align="center"><img src="images/wannacry_10.png" alt="screenshot"></div>
+
 Now we will just click the `Analyze` button and start the decompilation to begin statically analysing the ransomware.
+
 ### Statical Analysis
---- 
+
 #### General File Information
+
 To check general information about the file, we will use the program [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
 
 <div align="center"><img src="images/wannacry_11.png" alt="screenshot"></div>
+
 We will open the sample from the folder button.
 
 <div align="center"><img src="images/wannacry_12.png" alt="screenshot"></div>
+
 At the bottom we can see in the scan section that it's a PE file for 32 bits, the packer is Microsoft Visual C++, and it indicates that the file has high entropy.
 
 <div align="center"><img src="images/wannacry_13.png" alt="screenshot"></div>
@@ -118,6 +125,7 @@ To apply the changes, press `TAB` or `RETURN` to commit the changes and click `O
 Now you will see the changes reflected:
 
 <div align="center"><img src="images/wannacry_23.png" alt="screenshot"></div>
+
 #### Function wWinMain
 We can see from `Window > Function Call Graph`, when selecting the entry function, all the calls done by this function, which illustrates why it's the first executed function, `entry()`.
 
@@ -153,18 +161,18 @@ Now, we will edit the function signature for each of the `Wininet.h` functions.
 
 <div align="center"><img src="images/wannacry_31.png" alt="screenshot"></div>
 
-
 <div align="center"><img src="images/wannacry_32.png" alt="screenshot"></div>
-
 
 <div align="center"><img src="images/wannacry_33.png" alt="screenshot"></div>
 
 After tidying up the code, we can now start trying to understand the decompiled code. If we look at the if, we can see that we are comparing if the value returned by `InternetOpenUrlA` is null (zero); if it is, it couldn't connect with the URL. What it does mean is that if the weird URL is not found, a function is called, which will be the real entry function, because if the program establishes a connection with the suspicious URL, it will close the connection and the handle and instantly end the program. That's because it is using a killswitch mechanism, because the program is trying to evade any kind of sandbox that simulates whichever connection the WannaCry virus is trying to access, and if it actually gets a connection to a random URL, it will not continue its execution and end abruptly.
 
 <div align="center"><img src="images/wannacry_34.png" alt="screenshot"></div>
+
 The workflow of the program until now looks like this:
 
 <div align="center"><img src="images/wannacry_35.png" alt="screenshot"></div>
+
 #### Function real_entry
 Now we will check the `real_entry` function, where at first sight we see some stack variables and a few Windows functions.
 
@@ -186,61 +194,86 @@ In the first if, it's checking if we retrieved one or fewer arguments in `argc`,
 In `func_noargs()` there are two functions that are called, and after that it will return. We will enter the first function `FUN_00407c40()` to see what it does. Later we will check `FUN_00407ce0()`.
 
 <div align="center"><img src="images/wannacry_40.png" alt="screenshot"></div>
-- Function create_service_executable (FUN_00407c40)
+
+- Function create_service_executable (FUN_00407c40):
 	In this function we can see four Windows functions that are in the correct format, automatically formatted by Ghidra, when checking up the function signature. The functions can be verified in the Microsoft Documentation.
 	<div align="center"><img src="images/wannacry_41.png" alt="screenshot"></div>
+ 
 	If you check the first `sprintf`, we can see that we are using the executable_path variable we renamed before and storing it with additional parameters `-m security` (I will get something similar to `c:\Users\ANON\Desktop\Malware Samples\WannaCry Bueno\24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c.exe -m security`). We will rename the variable where it's being stored, `local_104`, to `executable_path_with_args` to have it identified.
 	<div align="center"><img src="images/wannacry_42.png" alt="screenshot"></div>
+ 
 	In the rest of the function, we first establish a connection to the Service Control Manager (SCM), and if it's opened correctly (the handle is not zero), then we create a service with the `lpServiceName` of `mssesvc_2.0`, which is the real service name, and the `lpDisplayName` of `Microsoft Security Center (2.0)`, which will be the name that will be displayed in the user graphical interface.
 	<div align="center"><img src="images/wannacry_43.png" alt="screenshot"></div>
+ 
 	After that, it checks if the service is successfully created, and if it was successful, it starts the service.
 	<div align="center"><img src="images/wannacry_44.png" alt="screenshot"></div>
+ 
 	Then we will come back to the previous function `func_noargs()`, after renaming this function to `create_service_executable`. And go the next function `FUN_00407ce0()`.
 	<div align="center"><img src="images/wannacry_45.png" alt="screenshot"></div>
+ 
 	- Function write_resource1831_tasksche (FUN_00407ce0)
 	After getting a first inspection, the function is quite huge with many process address retrievals, variable declarations, and many predefined functions, which are actually well formatted thanks to Ghidra.
 	<div align="center"><img src="images/wannacry_46.png" alt="screenshot"></div>
+ 
 	First we try to get a handle to [`kernel32.dll`](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-entry-point-function), which is a Dynamic Link Library in Windows Operating Systems that provides essential functionalities to interact with the operating system. If it succeeds, not equal to zero, it tries to load the process address of four functions. [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa) to create a process, [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea) to create a file, [`WriteFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile) to write in the file it will create, and [`CloseHandle`](https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle) to close the `kernel32.dll` handle. I will rename the variables to make it more clear.
 	<div align="center"><img src="images/wannacry_47.png" alt="screenshot"></div>
+ 
 	Later we can see that after a successful load of the four functions, it tries to find a resource with the function [`FindResourceA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-findresourcea), which, if we look at the parameters, the second one, `lpName`, which in reality is `MAKEINTRESOURCE`, looks for an ID, which, if we convert it to decimal we can see that it's trying to find the resource with the ID `1831`. 
 	<div align="center"><img src="images/wannacry_48.png" alt="screenshot"></div>
+ 
 	Also, the `DAT_0043137c` indicates the resource is of type `R`. 
 	<div align="center"><img src="images/wannacry_49.png" alt="screenshot"></div>
+ 
 	If the resource is found, we get the handle of the resource with [`LoadResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadresource), lock it with [`LockResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-lockresource) (which actually just gets the pointer to the memory containing the resource), and get the size in bytes of the resource with [`SizeofResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-sizeofresource).
 	<div align="center"><img src="images/wannacry_50.png" alt="screenshot"></div>
+ 
 	The following decompiled code seems to not be decompiled correctly by Ghidra, probably because its heuristic doesn't do well in this case. We can use great resources like [DogBolt](https://dogbolt.org) to decompile, which is a compilation of multiple open-source decompilers. But, if we compare the code with assembly, we can see that it's trying to set to zero a range of bits, of which `0x40` (64) is the amount of bytes that will be zeroed. The behaviour is similar to `memset(puVar6, 0, 0x40)`.
 	<div align="center"><img src="images/wannacry_51.png" alt="screenshot"></div>
+ 
 	Now if we continue reading the code, we see two `sprintf` that are attempting to store a string with multiple parameters, for which at first glance we see only one parameter (besides the variable to store the string). The first `sprintf` should have two additional parameters, taskche.exe and the Windows strings. The second `sprintf` is missing an additional parameter, which is the string Windows (`%s` is a placeholder to be replaced by the rest of the parameters).
 	<div align="center"><img src="images/wannacry_52.png" alt="screenshot"></div>
+ 
 	For the first `sprintf`, we will override the `signature`, adding two more parameters to make Ghidra automatically recognise the missing parameters.
 	<div align="center"><img src="images/wannacry_53.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_54.png" alt="screenshot"></div>
+ 
 	After changing it, we will see the changes reflected. The path saved will be `C:\WINDOWS\tasksche.exe`, so we will rename the variable to keep it identified. 
 	<div align="center"><img src="images/wannacry_55.png" alt="screenshot"></div>
+ 
 	For the next `sprintf`, we will do the same, but now we just need to add one param. The path saved will be `C:\WINDOWS\qeriuwjhrf`.
 	<div align="center"><img src="images/wannacry_56.png" alt="screenshot"></div>
+ 
 	And just in the next line we can see the function loaded from `kernel32.dll`, [`MoveFileExA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexa), which has two parameters, which, based on the flag, `MOVEFILE_REPLACE_EXISTING`, will be renamed to `qeriuwjhrf` if `tasksche.exe` already exists.
 	<div align="center"><img src="images/wannacry_57.png" alt="screenshot"></div>
+ 
 	A few lines down, we can see the previously loaded address of the function, `createFileA`, to be called as a function.
 	<div align="center"><img src="images/wannacry_58.png" alt="screenshot"></div>
+ 
 	The problem is that it seems it is not taking the variable correctly, so you will need to select the data type manually to make it be recognised by Ghidra. So you will need to retype globally the data type to `createFileA` as a pointer to call the function properly.
 	<div align="center"><img src="images/wannacry_59.png" alt="screenshot"></div>
+ 
 	<div align="center"><img src="images/wannacry_60.png" alt="screenshot"></div>
+ 
 	The result will be that we will be creating a file with `createFileA`, retrieving its handle.
 	<div align="center"><img src="images/wannacry_61.png" alt="screenshot"></div>
+ 
 	If the creation of the handle is successful, the `writeFile` function will be called, which will save the content of the resource `1831` into `tasksche.exe` (specified in the opened handle), and later the function `closeHandle` will close the opened handle, for which we will need to repeat the procedure of retype global (`resource_1831_locks` has another name because it's bugged and says that `resource_1831_lock` exists, when it doesn't exist after accidentally reverting changes).
 	<div align="center"><img src="images/wannacry_62.png" alt="screenshot"></div>
+ 
 	Now, there is a huge amount of code that is not easy to read.
 	First we have a loop that is setting to zero 16 bytes (`0x10`) of `puVar6`.
 	<div align="center"><img src="images/wannacry_63.png" alt="screenshot"></div>
+ 
 	Secondly, we have a variable with a big value, and also we load a pointer with data that if we clear the code bytes and make it a `TerminatedCString`, we see an interesting parameter, which is "` /i` ", that will be a parameter that makes a program silent. In the loop we go character by character, advancing the `mysterious_String` pointer one by one while getting each character, subtracting one from `mysterious_String_size` with each, until the null terminator appears, and later does a `NOT` operation with the big value, and after inverting the bits, we get the total size of the string.
 	<div align="center"><img src="images/wannacry_64.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_65.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_66.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_67.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_68.png" alt="screenshot"></div>
+ 
 	For the next step, which is harder to see, now we go through the entire `tasksche` path string until reaching the null terminator, staying at this pointer. Next we replace `tasksche_paths_string` by the mysterious string (`aux_mysterious_String - mysterious_String_size` returns to the start of the mysterious string). Now it subtracts one in the pointer of `aux_tasksche_path_string` to substitute the null terminator. In the first loop for, the mysterious string that is now copied to `tasksche_path_string` is appended in a block of 4 bytes to the end of `aux_tasksche_path_string` (the actual `tasksche` path). And the second loop (`for`) is for the remaining bytes (3, 2 or 1 byte remaining), which copies byte by byte.
 	<div align="center"><img src="images/wannacry_69.png" alt="screenshot"></div>
+ 
 	Now after appending the pointer data to the end of the `tasksche` path, the process is created with the added parameter "` \i`" that will execute the process silently with the [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa) function, and it is especially interesting that one of the parameters that corresponds to `dwCreationFlags` also has the value `0x8000000` ([`CREATE_NO_WINDOW`](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)) that makes it run silently, without displaying any console. If the process is created successfully, then we close open handles.
 	<div align="center"><img src="images/wannacry_70.png" alt="screenshot"></div>
 
@@ -248,16 +281,19 @@ In `func_noargs()` there are two functions that are called, and after that it wi
 Otherwise, if we had arguments, it will not enter the if to enter the `func_noargs()` and return; instead, it will try to open the Service Control Manager of Windows with [`OpenSCManagerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagera) and will try to open the service `mssecsvc2.0`, and if if it succeeds, it will enter a function.
 
 <div align="center"><img src="images/wannacry_71.png" alt="screenshot"></div>
+
 - function configure_service_failure (FUN_00407fa0)
 	In this function we see a bunch of strange data, but if we check the [`ChangeserviceConfig2A Documentation`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfig2a), the second parameter `dwInfoLevel` is `2`, which is `SERVICE_CONFIG_FAILURE_ACTIONS`, meaning the third parameter has to be of type `SERVICE_FAILURE_ACTIONS`. Changing the type of the variable will fix the function completely. Also, the second parameter of the whole function refers to seconds, because the variable `scact` is used for the delay multiplied by a thousand to get milliseconds, the required format.
 	<div align="center"><img src="images/wannacry_72.png" alt="screenshot"></div>
+ 
 	Because the function configures the service `mssecsvc2.0` to restart automatically on failure after `seconds`, if `seconds != -1` to make the malware service more persistent, we will rename the function `configure_service_failure`.
 	<div align="center"><img src="images/wannacry_73.png" alt="screenshot"></div>
 
 So after configuring the service, if a failure occurs, then it creates a `SERVICE_TABLE_ENRYA` with the service name `mssecsvc2.0` and pointer to the service's main function.
 
 <div align="center"><img src="images/wannacry_74.png" alt="screenshot"></div>
-- LAB_00408000
+
+\- LAB_00408000
 	It points to an undefined function that registers and launches the malware as a Windows service named `mssecsvc2.0` with [`RegisterServiceCtrlHandlerA`](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-registerservicectrlhandlera).
 	<div align="center"><img src="images/wannacry_75.png" alt="screenshot"></div>
 	If we enter `FUN_00407bd0()`, we can see more, and there is also a sleep that lasts 24 hours to keep it alive.
@@ -384,6 +420,7 @@ Now, we will save this file as `R1831.bin` and continue analysing it with Ghidra
 <div align="center"><img src="images/wannacry_120.png" alt="screenshot"></div>
 
 **General File Information**
+
 We open the resource `R1831.bin` in [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
 
 <div align="center"><img src="images/wannacry_121.png" alt="screenshot"></div>
@@ -517,6 +554,7 @@ Within the second `if`, there is a function whose functionality must be reviewed
 	<div align="center"><img src="images/wannacry_150.png" alt="screenshot"></div>
 	
 	<div align="center"><img src="images/wannacry_151.png" alt="screenshot"></div>
+ 
 	If we perform a clear code bytes or clear with options, we can better see the content. It turns out to be a string; judging by its content, it is "`ProgramData`", which we will assign the type `TerminatedUnicode`, since we are working with `Unicode`.
 	
 	<div align="center"><img src="images/wannacry_152.png" alt="screenshot"></div>
@@ -543,24 +581,16 @@ Within the second `if`, there is a function whose functionality must be reviewed
 	
 	<div align="center"><img src="images/wannacry_159.png" alt="screenshot"></div>
 	
-	- Function create_workingdir  (FUN_00401af6)
+	\- Function create_workingdir  (FUN_00401af6)
 		In this function, we see that there are two return values: `0` and `1`, so the function's return type should be `int`.
-		
 		<div align="center"><img src="images/wannacry_160.png" alt="screenshot"></div>
-		
 		<div align="center"><img src="images/wannacry_161.png" alt="screenshot"></div>
-		
 		<div align="center"><img src="images/wannacry_162.png" alt="screenshot"></div>
 		Reviewing the function, we see a series of steps that return `1` if successful, or `0` otherwise. First, it creates the previously saved `ProgramData` directory by calling [`CreateDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), then changes the current working directory of the process with [`SetCurrentDirectoryW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setcurrentdirectory). If there is no error, it proceeds to the next `if`.
-		
 		In the next `if`, it creates a folder with the previously generated random string name, using the same method. If this is successful, it retrieves the folder attributes with [`GetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileattributesw), which will be used to modify the folder attributes with [`SetFileAttributesW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileattributesw). Using `Dvar2 | 6`, the original permissions are maintained but with the addition of `0x2 = FILE_ATTRIBUTE_HIDDEN` (hides it from Explorer) and `0x4 = FILE_ATTRIBUTE_SYSTEM` (marks it as a system folder).
-		
 		Finally, the path of the new folder is saved into the pointer `new_dir`, resulting in either `C:/Windows/ProgramData/{RandomString}` or `C:/ProgramData/{RandomString}`.
-		
 		<div align="center"><img src="images/wannacry_163.png" alt="screenshot"></div>
-		
 		Therefore, with this function, it creates the folder and change the working directory to it, where it will operate.
-		
 		<div align="center"><img src="images/wannacry_164.png" alt="screenshot"></div>
 	Returning to the previous function, if it also fails, the malware will try to create a folder in `C:/Windows/Intel` or `C:/Intel` with the random string folder. If this also fails, it will use [`GetTempPathW`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppathw) to obtain a path similar to `C:\Users\user\AppData\Local\Temp\`, from which it will remove the trailing backslash and create the random string directory inside the Temp folder.
 	
@@ -579,9 +609,8 @@ Once both conditions are met, the program attempts to copy the current executabl
 
 <div align="center"><img src="images/wannacry_167.png" alt="screenshot"></div>
 
-- Function create_or_start_tasksche_service  (FUN_00401f5d)
+\- Function create_or_start_tasksche_service  (FUN_00401f5d)
 	After making some variables more clear and fixing the return type, we have the next code:
-	
 	<div align="center"><img src="images/wannacry_168.png" alt="screenshot"></div>
 	In the code we can see that in the function [`GetFullPathNameA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfullpathnamea) we're getting the complete path of the copied file `tasksche.exe`, which later is used as a parameter in a function that we will analyse.
 	- Function create_tasksche_service (FUN_00401ce8)
@@ -590,16 +619,13 @@ Once both conditions are met, the program attempts to copy the current executabl
 		The function therefore creates the `tasksche.exe` service, so we will rename it to `create_tasksche_service`:
 		<div align="center"><img src="images/wannacry_170.png" alt="screenshot"></div>
 	Therefore, if the `tasksche` service is created and another function (which we will analyze later) succeeds, the function will complete successfully.
-	
 	<div align="center"><img src="images/wannacry_171.png" alt="screenshot"></div>
 	- Function get_mutex_tasksche (FUN_00401eff)
 		This function attempts to acquire a mutex with a specific name, `Global\MsWinZonesCacheCounterMutexA0`. If it fails, it will retry `tries_number` times, waiting one second between each attempt. If the mutex already exists, it returns `1`; if all attempts fail, it returns `0`. This mechanism is used to prevent multiple instances of the malware from running simultaneously, avoiding double infection and remaining stealthier by continuously checking if another instance is already executing.
 		<div align="center"><img src="images/wannacry_172.png" alt="screenshot"></div>
 	Therefore, if the service is created and the mutex is acquired, the function returns `1`.
-	
 	<div align="center"><img src="images/wannacry_173.png" alt="screenshot"></div>
 	If there is no mutex, meaning another active instance exists, the code will enter a function that we will analyse next, passing the path of `tasksche` as a parameter.
-	
 	<div align="center"><img src="images/wannacry_174.png" alt="screenshot"></div>
 	- Function run_process_params (FUN_00401064)
 		The function receives the process path, a timeout, and a process state. It attempts to create the process using the information provided with [`CreateProcessA`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa).
@@ -611,15 +637,14 @@ Once both conditions are met, the program attempts to copy the current executabl
 		Based on the functionality, the function will be renamed to `run_process_params`:
 		<div align="center"><img src="images/wannacry_178.png" alt="screenshot"></div>
 	Therefore, if there was no previous instance running, we manually create the process and verify that it is running.
-	
 	<div align="center"><img src="images/wannacry_179.png" alt="screenshot"></div>
 	Based on the functionality, the function checks if a tasksche service is running, and if it is not, it starts it. It will be renamed to `create_or_start_tasksche_service`.
-	
 	<div align="center"><img src="images/wannacry_180.png" alt="screenshot"></div>
 ###### Function wWinMain
 Recapping the implication of this function; if the resource is copied to `tasksche.exe` and the attributes are obtained (indicating it exists), and we try to manually create or start the service and it works correctly, the function ends returning `0`. Otherwise, the program execution continues.
 
 <div align="center"><img src="images/wannacry_181.png" alt="screenshot"></div>
+
 Subsequently, if `string_param_i` is used as a variable to point as a pointer to the last position of the backslash, it is replaced with a null terminator, so as to reference only the path and not the included file.
 
 <div align="center"><img src="images/wannacry_182.png" alt="screenshot"></div>
@@ -639,6 +664,7 @@ In the second function, if we look at the assembly, we can see that it takes an 
 Therefore, we modify the function signature to accept an additional parameter.
 
 <div align="center"><img src="images/wannacry_186.png" alt="screenshot"></div>
+
 ###### Function  set_get_registry_currentdirectory (FUN_004010fd)
 In the function we first have a pointer at the end of the `software_string` `Software\`, with `software_string_buffer`, and some `memset` that zeroes a range of memory.
 
@@ -659,6 +685,7 @@ With this information, we will rename the function to `set_get_registry_currentd
 <div align="center"><img src="images/wannacry_190.png" alt="screenshot"></div>
 
 ###### Function extract_encrypted_resource (FUN_00401dab)
+
 At first sight what we can see is that it's trying to get an embedded resource, as 1831 originally did. It starts by trying to find the resource called `2058` of type `XIA` with [`FindResourceA`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-findresourcea), and if the resource is found, we get the handle of the resource with [`LoadResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadresource), lock it with [`LockResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-lockresource) (which actually just gets the pointer to the memory containing the resource), and get the size in bytes of the resource with [`SizeofResource`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-sizeofresource). After that it calls another function that will need to be analysed, which receives the pointer to the resource, the size, and the weird string.
 
 <div align="center"><img src="images/wannacry_191.png" alt="screenshot"></div>
@@ -667,16 +694,22 @@ At first sight what we can see is that it's trying to get an embedded resource, 
 This function calls another function in which, at first, there is nothing relevant, besides initially passing the resource pointer, its size, and the weird string.
 
 <div align="center"><img src="images/wannacry_192.png" alt="screenshot"></div>
+
+.
 	- FUN_004074a4
 	If we enter the next function, `FUN_004074a4()` there are too many new functions without anything interesting at first sight, mainly because Ghidra seems to not decompile it correctly. Moreover, if you try to analyse each function, you will see more new functions to analyse, so after looking at the different functions, there is one that is quite interesting.
 	<div align="center"><img src="images/wannacry_193.png" alt="screenshot"></div>
 	The interesting function is the function `FUN_00406b8e()` which is receiving the function parameters, which are not correctly shown because of Ghidra, but if you look at assembly, you see it references the stack variables passed.
 	<div align="center"><img src="images/wannacry_194.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_195.png" alt="screenshot"></div>
+
+.
 		- FUN_00406b8e
 		We can see in the function that we call another interesting function with the same function parameters, the function `FUN_00405bae()`.
 		 <div align="center"><img src="images/wannacry_196.png" alt="screenshot"></div>
-			- FUN_00405bae
+
+.
+			- FUN_00405bae:
 			This function creates a file with [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea) and sets the pointer in the file with [`SetFilePointer`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfilepointer). So it's apparently creating a file with the embedded resource and returning the pointer of the file.
 			<div align="center"><img src="images/wannacry_197.png" alt="screenshot"></div>
 			So after creating the file, the next and more important function is `FUN_00405fe2()`.
@@ -705,6 +738,7 @@ The resource we will save it as `.res`, and change it to the `.XIA` extension.
 Then decompress it with WinRAR, which, after opening it, we can see multiple files:
 
 <div align="center"><img src="images/wannacry_204.png" alt="screenshot"></div>
+
 To decompress it, it will ask for a password, which the weird string "`WNcry@2ol7`" we have seen before is the decryption key.
 
 So, we have two new executables, six `.wnry` files, and a folder `msg` with also `.wnry` files, which seem to be based on the user language. 
@@ -712,12 +746,14 @@ So, we have two new executables, six `.wnry` files, and a folder `msg` with also
 <div align="center"><img src="images/wannacry_205.png" alt="screenshot"></div>
 
 <div align="center"><img src="images/wannacry_206.png" alt="screenshot"></div>
+
 So we will check with the Hex viewer and editor (program HxD) the different files; besides the `msg` files, where we will only check the English one:
 
 - b.wnry
 	At `b.wnry`, when inspecting the binary, there is not any plain text, but if we check the first two bytes `42 4D` in the [`signature list`](https://www.garykessler.net/library/file_sigs.html), it indicates it is a `.bmp` file (bitmap, which is an image), so we will copy this file and put the `.bmp` extension on it.
 	
 	<div align="center"><img src="images/wannacry_207.png" alt="screenshot"></div>
+ 
 	So we copy and change the extension and open the image. Which seems to be an image to be displayed when the user gets infected.
 	
 	<div align="center"><img src="images/wannacry_208.png" alt="screenshot"></div>
@@ -735,6 +771,7 @@ So we will check with the Hex viewer and editor (program HxD) the different file
 	At `s.wnry`, there are some Tor files and components mentioned, which if we take the first 4 bytes of the file `50 4B 03 04` and look for the signature in a [`signature list`](https://www.garykessler.net/library/file_sigs.html), it indicates is a zip file. 
 	
 	<div align="center"><img src="images/wannacry_212.png" alt="screenshot"></div>
+ 
 	If we try to open the file in WinRAR, it has two folders; an empty one named `Data` and another one named `Tor`, which has the files needed to use the Tor browser without installing it (portable program).
 	
 	<div align="center"><img src="images/wannacry_213.png" alt="screenshot"></div>
@@ -752,6 +789,7 @@ So we will check with the Hex viewer and editor (program HxD) the different file
 	At `m_english.wnry`, we can see looking at the [`signature list`](https://www.garykessler.net/library/file_sigs.html) that the first 5 bytes `7B 5C 72 74 66` reference a rich text format word processing file (`.rtf`) that has multiple formats.
 	
 	<div align="center"><img src="images/wannacry_217.png" alt="screenshot"></div>
+ 
 	We will copy the file and change the extension to `.rtf` to make it easier to read. Inside the file we can see how the group responsible for the infection is claiming that the only way to recover the files is to pay them a certain amount of bitcoins.
 	
 	<div align="center"><img src="images/wannacry_218.png" alt="screenshot"></div>
@@ -770,10 +808,12 @@ Also, `local_31c` and `local_26a` are next to each other, and it usually means a
  So it looks like this now:
  
  <div align="center"><img src="images/wannacry_222.png" alt="screenshot"></div>
+ 
 Before proceeding with the analysis, of this function we will analyse the function `FUN_00401000()` .
 - Function write_or_read_cwnry (FUN_00401000)
 	In this function based on the `op_type`, if zero it will be `wb`, while different from zero it will be `rb` at the variable `_Mode`. Which also later, after opening the file we decrypted and extracted from the resource `2058.XIA`, the file `c.wnry`, we will write in the file with the buffer content the first 780 bytes (the actual size) if `op_type = 0`, and if `op_type != 0`, then it will read from the file and write it at the buffer. 
 	<div align="center"><img src="images/wannacry_223.png" alt="screenshot"></div>
+ 
 	Taking into account the functionality, we will rename the function to `write_or_read_cwnry`.
 	<div align="center"><img src="images/wannacry_224.png" alt="screenshot"></div>
 
@@ -839,6 +879,7 @@ This function at first sight loads a variety of `kernel32.dll` function pointers
 So after clearing up what the function does, if the `init_crypto_function_ptr` is successful, then it will enter the first `if` which, which checks with another `if`, if `createFileW` is actually initialised, and if it is, then it returns a `1`. If not, then it will attempt to load the next functions, that if they're all correctly loaded then it will return a `1` and if any of the function fails it will return a `0`.
 
 <div align="center"><img src="images/wannacry_234.png" alt="screenshot"></div>
+
 The functions loaded from the library `kernel32.dll` are the following:
 
 |Variable|Windows API Function|Purpose|
@@ -859,9 +900,11 @@ Based on the functionality of the described function, we will rename it to `init
 So if the previous functions are loaded, then we enter the if and execute two functions, depending on the second to enter the next `if`.
 
 <div align="center"><img src="images/wannacry_236.png" alt="screenshot"></div>
+
 If we look at both functions, the first function `FUN_004012fd()` looks somewhat strange, as it calls different functions and has some variable calculations.
 
 <div align="center"><img src="images/wannacry_237.png" alt="screenshot"></div>
+
 But the interesting part comes when the function `FUN_00401437()` has the convenience call **`__thiscall`** which is exclusive from `C++`, as we can corroborate from the [`Microsoft Documentation`](https://learn.microsoft.com/en-us/cpp/cpp/thiscall).
 
 <div align="center"><img src="images/wannacry_238.png" alt="screenshot"></div>
@@ -874,6 +917,7 @@ Then we will analyse the function `FUN_00401437()`.
 	At first sight there is a significant amount of code, which is to handle the object (this).
 	
 	<div align="center"><img src="images/wannacry_239.png" alt="screenshot"></div>
+ 
 	First we have to check the function `FUN_00401861()`.
 		- import_key (FUN_00401861)
 		We also have to check the first function `FUN_00420182c()`.
@@ -899,6 +943,8 @@ So if the `import_rsa_key()` function is done correctly, then it enters the `if`
 <div align="center"><img src="images/wannacry_246.png" alt="screenshot"></div>
 - decrypt\_twnry (FUN_004014a6)
 	<div align="center"><img src="images/wannacry_247.png" alt="screenshot"></div>
+ 
+ .
 	The function is a function of an object because of `__thiscall` and `*this` reference. The first interesting part comes when it attempts to open the file `t.wnry`, the one with the unidentifiable content with a custom signature, with [`CreateFileA`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea), so that if the file is opened successfully, then with [`GetFileSizeEx`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfilesizeex) we retrieve the size of the file, checking that it doesn't surpass 100MB (`0x6400000`). If it doesn't surpass that size, then it compares the first 8 bytes of `t.wnry` and compares it to the string `WANACRY!`, which is exactly the same custom signature we commented on before. 
 	<div align="center"><img src="images/wannacry_248.png" alt="screenshot"></div>
 	Then we read the next 4 bytes, which, if it equals 256, then it continues reading. Which, based on the next 4 bytes in `t.wnry` in little endian, is actually 256:
@@ -963,6 +1009,7 @@ So if the `import_rsa_key()` function is done correctly, then it enters the `if`
 First we will need to retrieve the RSA2 key we had in the `import_key()` function and select all the data.
 
 <div align="center"><img src="images/wannacry_268.png" alt="screenshot"></div>
+
 Then we right-click and select the `Copy Special...` option and choose the `Byte String` copy option.
 
 <div align="center"><img src="images/wannacry_269.png" alt="screenshot"></div>
@@ -976,23 +1023,30 @@ Now we will need to retrieve with HxD the AES encrypted key and the payload-encr
 To get a range of data selected in HxD, you will need to go to the `Edit > Select` block or press `Ctrl + E`.
 
 <div align="center"><img src="images/wannacry_271.png" alt="screenshot"></div>
+
 Then you will have to specify a `Start-offset` and a `End-offset` or a `Length`:
 
 <div align="center"><img src="images/wannacry_272.png" alt="screenshot"></div>
+
 - encrypted_aes_key.bin:
 	First select the data range and copy it.
 	<div align="center"><img src="images/wannacry_273.png" alt="screenshot"></div>
+ 
 	Now create a new file on `File > New` or press `Ctrl+N`. 
 	<div align="center"><img src="images/wannacry_274.png" alt="screenshot"></div>
+ 
 	And now right-click and `Paste insert` or `Ctrl+V` at the start.
 	<div align="center"><img src="images/wannacry_275.png" alt="screenshot"></div>
+ 
 	And save it in `File > Save as...`.
 - encrypted_payload.bin:
 	The same as the previous one.
 	<div align="center"><img src="images/wannacry_276.png" alt="screenshot"></div>
+
 With this done, now we have the encrypted files:
 
 <div align="center"><img src="images/wannacry_277.png" alt="screenshot"></div>
+
 - rsa2key.bin:
 	<div align="center"><img src="images/wannacry_278.png" alt="screenshot"></div>
 
@@ -1139,6 +1193,7 @@ If everything goes right the prompt `Decryption complete: mysterious_executable.
 Then looking at `mysterious_executable.bin`, we can see it's an executable because of the signature (`MZ`):
 
 <div align="center"><img src="images/wannacry_283.png" alt="screenshot"></div>
+
 Also, if we look at the header `PE\0\0` signature, we will see some bits later in the characteristics field, based on [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format), the `0x2000` bit is activated, which is the flag `IMAGE_FILE_DLL`, confirming it's a DLL file.
 
 <div align="center"><img src="images/wannacry_284.png" alt="screenshot"></div>
@@ -1179,19 +1234,24 @@ The workflow of `1831.bin` is the next one:
 
 <div align="center"><img src="images/wannacry_288.png" alt="screenshot"></div>
 ##### DLL Mysterious_executable
+
 **General File Information**
+
 To check general information about `mysterious_executable.bin`, we will use the program [`Detect It Easy`](https://github.com/horsicq/Detect-It-Easy).
 
 <div align="center"><img src="images/wannacry_289.png" alt="screenshot"></div>
 At the bottom we can see in the scan section that it's a PE file for 32 bits, the packer is Microsoft Visual C++, and it indicates that it has a high entropy.
 
 <div align="center"><img src="images/wannacry_290.png" alt="screenshot"></div>
+
 If we go to the entropy section, we will see that the entropy is high, and most of the executable is packed; 22% of the content is packed and has an entropy of `6.27944`.
 
 <div align="center"><img src="images/wannacry_291.png" alt="screenshot"></div>
+
 Besides that, we can see the file properties showing its size:
 
 <div align="center"><img src="images/wannacry_292.png" alt="screenshot"></div>
+
 To get the file hashes, we can use the following commands from PowerShell:
 > Get-FileHash -Path ".\mysterious_executable.bin" -Algorithm MD5
 > Get-FileHash -Path ".\mysterious_executable.bin" -Algorithm SHA1
@@ -1215,20 +1275,25 @@ To get the file hashes, we can use the following commands from PowerShell:
 Now we will import the binary `mysterious_executable.bin` as we did with the previous binary samples.
 
 <div align="center"><img src="images/wannacry_294.png" alt="screenshot"></div>
+
 Same settings as before.
 
 Now we first go to check the strings, on `Window > Defined Strings`, to see a general sight of the program.
 
 <div align="center"><img src="images/wannacry_295.png" alt="screenshot"></div>
+
 There we can see at first sight multiple Windows functions thats interact with files.
 
 <div align="center"><img src="images/wannacry_296.png" alt="screenshot"></div>
+
 A vast amount of file extensions.
 
 <div align="center"><img src="images/wannacry_297.png" alt="screenshot"></div>
+
 Cryptographic functions, more file functions, and another executable, `@WanaDecryptor@.exe`, which, by the name, could be the program responsible for decrypting the encrypted files by the ransomware when the payment is successful.
 
 <div align="center"><img src="images/wannacry_298.png" alt="screenshot"></div>
+
 Based on the context and the strings of the program, this executable starts the encrypting process of the user files because it's already infected. Because we will be analysing evasion techniques, this executable will be out of scope, as the infection was already done.
 
 ### Dynamic analysis
@@ -1383,6 +1448,7 @@ To continue analysing, this we will import u.wnry in Ghidra, which is `@WanaDecr
 	When `@WanaDecryptor@.exe` is executed with the `vs` argument, compared at `DAT_004210a0`:
 	
 	<div align="center"><img src="images/wannacry_303.png" alt="screenshot"></div>
+ 
 	Then it waits 10 seconds and then runs the following command that deletes all [`shadow copies`](https://learn.microsoft.com/en-us/windows-server/storage/file-server/volume-shadow-copy-service), disables the system's recovery options, and deletes the [`wbadmin`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wbadmin) catalogue.
 ```
 cmd.exe /c vssadmin delete shadows /all /quiet & wmic shadowcopy delete & bcdedit /set {default} bootstatuspolicy ignoreallfailures & bcdedit /set {default} recoveryenabled no & wbadmin delete catalog -quiet
@@ -1679,17 +1745,21 @@ If we execute the malware, we can see that files get encrypted with the `.WNCRY`
 The interface provides an explanation of what has occurred to the system, instructions on how to recover the encrypted files, payment details in Bitcoin, and contact information.
 
 <div align="center"><img src="images/wannacry_307.png" alt="screenshot"></div>
+
 Bottom left, there are three options:
 - **About Bitcoin**: Opens the Wikipedia page on Bitcoin (`https://en.wikipedia.org/wiki/Bitcoin`)
 - **How to buy bitcoins**: Opens a Google search for buying Bitcoin (`https://www.google.com/search?q=how+to+buy+bitcoin`).
 - **Contact Us**: Opens a form allowing the victim to send a message to the attacker
 	<div align="center"><img src="images/wannacry_308.png" alt="screenshot"></div>
+ 
 At the bottom there are two other options:
 **Bottom right options:**
 - **Check Payment**: Attempts to connect to a remote server to verify payment status. 
 	<div align="center"><img src="images/wannacry_309.png" alt="screenshot"></div>
+ 
 - **Decrypt**: Clicking `Decrypt` and then `Start` prompts the user to pay before decryption can begin.
 	<div align="center"><img src="images/wannacry_311.png" alt="screenshot"></div>
+ 
 **Top right corner**: Language selection menu for the ransomware message.
 	<div align="center"><img src="images/wannacry_312.png" alt="screenshot"></div>
 
@@ -1705,16 +1775,21 @@ Using Process Hacker, multiple suspicious services and processes are identified 
 One particularly interesting process is `taksche.exe`, registered as a service with a randomly generated name `oqywognupbonhr845`. This file is located at `C:/ProgramData/oqywognupbonhr845`:
 	<div align="center"><img src="images/wannacry_319.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_320.png" alt="screenshot"></div>
+ 
 This folder is hidden by default; visibility was enabled by configuring Windows Explorer to show hidden items, indicated by the translucent folder icon.
 	<div align="center"><img src="images/wannacry_321.png" alt="screenshot"></div>
+ 
 Inside this folder are all components previously recovered through static analysis, except for `@WanaDecryptor@.exe`, which is essentially a renamed copy of `u.wnry` with a custom icon.
 	<div align="center"><img src="images/wannacry_322.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_323.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_324.png" alt="screenshot"></div>
+ 
 The `mssecsvc2.0` process attempts to disguise itself as a legitimate Microsoft Defender service.
 	<div align="center"><img src="images/wannacry_325.png" alt="screenshot"></div>
+ 
 Two key processes, `taksche.exe` (described as "DiskPart") and `taskhsvc.exe`, are also associated with the ransomware's operation.
 	<div align="center"><img src="images/wannacry_326.png" alt="screenshot"></div>
+ 
 The main process masquerades as a legitimate service under the name **Microsoft Disk Defragmenter**, with Microsoft Corporation listed as the publisher.
 	<div align="center"><img src="images/wannacry_327.png" alt="screenshot"></div>
 
@@ -1722,9 +1797,11 @@ The main process masquerades as a legitimate service under the name **Microsoft 
 Network activity reveals that the main executable attempts to establish connections to random IP addresses over **port 445 (SMB)**. This is a preparatory step for launching the **EternalBlue exploit**, used for lateral movement.
 	<div align="center"><img src="images/wannacry_328.png" alt="screenshot"></div>
 	<div align="center"><img src="images/wannacry_329.png" alt="screenshot"></div>
+ 
 #### Persistence Mechanism
 A registry entry is created under "`HKEY_CURRENT_USER/SOFTWARE/Microsoft/Windows/CurrentVersion/Run`". This entry has the name `oqywognupbonhr845` and points to the path of the malware executable, ensuring that the ransomware runs on every system startup.
 	<div align="center"><img src="images/wannacry_330.png" alt="screenshot"></div>
+ 
 ### Execution workflow
 So the workflow of the program is the following:
 
