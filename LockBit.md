@@ -454,7 +454,7 @@ AND EAX, 0x157                     ; Check if any of masked bits (0x157) are set
 			With all these checks, the function seems to exclude anything that couldn't be a normal string, which we were passing to the function implementation, which is strange, as it would always be invalid. But if we look at [`Microsoft Documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-address-table), it could be a literal string pointing to a forwarded exported function, not the actual implementation. This is not valid for loading a library dynamically in a hidden way, as LockBit attempts.
 			We will rename the function to `func_char_verifier`:
 			<div align="center"><img src="images/lockbit_51.png" alt="screenshot"></div>
-		So after checking the previous function and corroborating it with [`Microsoft documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-address-table), it checks if it's a forwarded export or the actual function implementation. We will rename the function to `func_diff_fwexport:
+		So after checking the previous function and corroborating it with [`Microsoft documentation`](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-address-table), it checks if it's a forwarded export or the actual function implementation. We will rename the function to `func_diff_fwexport`:
 		<div align="center"><img src="images/lockbit_52.png" alt="screenshot"></div>
 
   .
@@ -1197,6 +1197,8 @@ RET        0x10
 | `2`    | `XOR` + `JMP EAX`         | Obfuscates the API address with XOR against `0x10035FFF`, stores the obfuscated value and the mask, and builds trampoline to deobfuscate and jump. |
 | `3`    | `ROL` + `XOR` + `JMP EAX` | First obfuscates the API address with XOR, then corrupts it with a left rotation. Trampoline applies reverse operations: `ROR`, `XOR`, then jump.  |
 | `4`    | `ROR` + `XOR` + `JMP EAX` | XOR obfuscation followed by right rotation. Trampoline reverses with `ROL`, `XOR`, then jump.                                                      |
+
+.
 	- 🔢 Return value: `0`
 		- **API address modification**:
 			`ROL EBX, CL` → API address is corrupted via left rotation by `CL`.
@@ -2423,9 +2425,7 @@ RET        0x8
 	- some_aplib_decompressor_func (FUN_00418c34):
 		This function takes byte per byte of `param_3` doing multiple transformations saving the results of each transformation at `param_4`.
 		<div align="center"><img src="images/lockbit_530.png" alt="screenshot"></div>
-    
 		<div align="center"><img src="images/lockbit_531.png" alt="screenshot"></div>
-    
 		After a long investigation, it is definitely a decompressor. The most similar one is the [`aPLib decompressor`](https://ibsensoftware.com/products_aPLib.html), because of a few aspects:
 			- The secondary allocated data for the compressed data doubles it's size, so there is no transformation, but instead decompression as we get more bytes than we had before the compressed data. Later we will check it with x32dbg.
 			- Bit-level logic, backreferences and variable-length encoding which is common on the [`aPLib decompressor`](https://ibsensoftware.com/products_aPLib.html).
@@ -2507,6 +2507,8 @@ adc    ecx, 0
 | `2`    | `XOR` + `JMP EAX`         | Obfuscates the pointer to secondary alloc data with XOR against `0x10035FFF`, stores the obfuscated value and the mask, and builds trampoline to deobfuscate and jump. |
 | `3`    | `ROL` + `XOR` + `JMP EAX` | First obfuscates the pointer to secondary alloc data with XOR, then corrupts it with a left rotation. Trampoline applies reverse operations: `ROR`, `XOR`, then jump.  |
 | `4`    | `ROR` + `XOR` + `JMP EAX` | XOR obfuscation followed by right rotation. Trampoline reverses with `ROL`, `XOR`, then jump.                                                                          |
+
+.
 		- 🔢 Return value: `0`
 			- **API address modification**:
 				`ROL EBX, CL` → API address is corrupted via left rotation by `CL`.
@@ -2824,7 +2826,8 @@ MOV [EDX + EBX], EAX       ; param_1[EDX] = *param_2
 ...
 RET 0x8
 ```
--
+
+.
 		The function creates a structure of random data occupying 128 bytes at `param_1`, and at a random offset of `param_1` copies `param_2` content there.  The global variable `DAT_00425194` which takes the value of the second invoked `create_trampoline_to_secondary_alloc` the returned pointer, will be renamed to `random_data_128bytes_copyp2`.
 		<div align="center"><img src="images/lockbit_550.png" alt="screenshot"></div>
     
@@ -3919,7 +3922,7 @@ undefined4 FUN_0040b4fc(int param_1)
 	Because of this, we will rename the function to `is_token_admin_member`:
 	<div align="center"><img src="images/lockbit_610.png" alt="screenshot"></div>
   
-So if the token is part of an administrator group, it will execute `FUN_0040babc() and terminate the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). Otherwise, it will continue with the rest of the logic.
+So if the token is part of an administrator group, it will execute `FUN_0040babc()` and terminate the process with [`NtTerminateProcess`](https://ntdoc.m417z.com/ntterminateprocess). Otherwise, it will continue with the rest of the logic.
 
 - bypass_uac_icmluautil_spoof_peb_and_relaunch (FUN_0040babc):
 	Before analysing this function, we first analysed the nested functions in order to make the functionality of this function clearer, which can be seen after the analysis of this function.
@@ -4799,16 +4802,12 @@ undefined4 FUN_00409880(int param_1, undefined4 param_2, undefined4 param_3)
 .
 		The main objective is to probably obtain a token of an elevated process running on the system in order to impersonate the target process with this elevated token. The function will be renamed to `get_duplicated_impersonated_token_with_pid`:
 		<div align="center"><img src="images/lockbit_656.png" alt="screenshot"></div>
-    
 	To understand better how it works, we will debug it with x32dbg to see which process is attempting to impersonate.
 	If we put a breakpoint at the point that it attempts to store the PID of the matching hash process name, we will see that it's the process explorer.exe, which makes sense as it's an elevated process:
 	<div align="center"><img src="images/lockbit_657.png" alt="screenshot"></div>
-  
 	This can be confirmed if we compare the stored PID with the PID of **explorer.exe** running at that moment with Process Hacker. Which at that moment **explorer.exe** had the Process ID (PID) 5972 (`0x1754`):
 	<div align="center"><img src="images/lockbit_658.png" alt="screenshot"></div>
-  
 	<div align="center"><img src="images/lockbit_659.png" alt="screenshot"></div>
-  
 	Then the function will end up by retrieving the impersonated primary token with [`SecurityDelegation`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-security_impersonation_level) rights, being able to impersonate the client's security context on remote systems. 
 	Based on this, we will rename the function to `get_explorer_securitydelegation_token`:
 	<div align="center"><img src="images/lockbit_660.png" alt="screenshot"></div>
@@ -5276,7 +5275,6 @@ undefined4 FUN_00412674(undefined4 param_1)
 .
 	Because the function just retrieves the Domain Controller Name we will rename it to `get_domain_controller_name_func`:
 	<div align="center"><img src="images/lockbit_678.png" alt="screenshot"></div>
-  
 	- alloc_copy_and_encrypt_with_size_prefix (FUN_00406e18):
 		The function allocates memory using `allocate_data_processheap_antidbg()`, copies `param_2` bytes from `param_1` into the newly allocated buffer, and then applies encryption with `two_round_xor_decryption_func`. The total allocated memory is `param_2 + 4` bytes, where the first 4 bytes store the size (`param_2`) as a prefix. This design allows other parts of the code to keep track of the data size before the actual buffer content. It returns a pointer to the start of the allocated buffer. If allocation fails, it returns `NULL`.
 ```c
@@ -5302,7 +5300,6 @@ int *FUN_00406e18(undefined *param_1, int param_2)
 .
 		Based on the functionality we discussed, we will rename the function to `alloc_copy_and_encrypt_with_size_prefix`:
 		<div align="center"><img src="images/lockbit_679.png" alt="screenshot"></div>
-    
 	- attempt_dclogon_and_get_token (FUN_0040b17c):
 		This function attempts to authenticate a user using the [`LogonUserW`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-logonuserw) API with the interactive logon type (`LOGON32_LOGON_INTERACTIVE`, value `2`). It expects `param_1` to be a pointer to an array of three wide-character strings:
 		- `param_1[0]`: The **username**.
@@ -5322,10 +5319,8 @@ undefined4 FUN_0040b17c(undefined4 *param_1)
 .
 		Based on this, the function will be renamed to `attempt_dclogon_and_get_token`:
 		<div align="center"><img src="images/lockbit_680.png" alt="screenshot"></div>
-    
 	If we debug it with x32dbg, we will be able to see the set of usernames and passwords after decoding and decrypting the data at `DAT_00425154`.
 	<div align="center"><img src="images/lockbit_680_1.png" alt="screenshot"></div>
-  
 	The set of usernames and passwords to be tested are the following:
 		- `ad.lab:Qwerty!`
 		- `Administrator:123QWEqwe!@#`
@@ -6527,7 +6522,7 @@ h = (*RegCreateKeyExW)(0x80000002,local_70,0,0,0,0x20119,0,local_70+0x19,0);
 ```
 .
 				<div align="center"><img src="images/lockbit_753.png" alt="screenshot"></div>
-				Then with [`RegQueryValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexw) obtains the value of the next deobfuscated data, which is `"ProductName":
+				Then with [`RegQueryValueExW`](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexw) obtains the value of the next deobfuscated data, which is `"ProductName"`:
 				<div align="center"><img src="images/lockbit_754.png" alt="screenshot"></div>
 			After all the functions, it retrieves data of the host in a JSON format, as can be seen in x32dbg:
 			<div align="center"><img src="images/lockbit_755.png" alt="screenshot"></div>
