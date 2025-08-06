@@ -643,7 +643,6 @@ MOV     word ptr [EDX],CX       ; ANSI_STRING.Length = byte length - 1
 .
 				As we did before, based on the functionality, the function will be renamed to `create_ansi_string_struct()`.
 				<div align="center"><img src="images/lockbit_59.png" alt="screenshot"></div>
-        
 		So, with that we retrieve the address of the API function from the DLL, and return it.
 ```assembly
 ...
@@ -656,7 +655,6 @@ RET     0x4
 .
 		Based on the functionality, it then retrieves the address of the API function from the forwarded exported function in order to obtain a reference to the code. The function will be renamed to `func_get_api_addr_from_fwexport()`.
 		<div align="center"><img src="images/lockbit_60.png" alt="screenshot"></div>
-    
 	Now that we understand what the last function does, the overall routine attempts to dynamically resolve API function addresses based on a target hash. It does so by iterating through each loaded DLL in the process and applying a **custom DLL hashing function** to compute a module-specific hash. Then, for each exported function within that DLL, it applies a second **custom API name hashing function**, combines both hashes, and compares the result with the target hash. When a match is found, the function retrieves the address of the corresponding API. If the export is **forwarded** (i.e., it points to another DLL), the code calls a helper routine to manually resolve the final address from the forwarded module.
 ```assembly
     LAB_00405baa:
@@ -2297,7 +2295,6 @@ ROR EBX,0x1                   ; If active -> debugged, corrupt heap handle with 
 .
 	Once again we will need to get rid of this anti-debugging technique substituting the ROR operation by a `NOP`.
 	<div align="center"><img src="images/lockbit_524.png" alt="screenshot"></div>
-  
 	And export it as always.
 
 ---
